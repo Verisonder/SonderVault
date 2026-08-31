@@ -136,6 +136,7 @@ fun ViewerScreen(
     var confirmingDelete by remember { mutableStateOf(false) }
     var confirmingPutBack by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf<String?>(null) }
+    var problem by remember { mutableStateOf<String?>(null) }
 
     val current = items[pager.currentPage.coerceIn(0, items.lastIndex)]
 
@@ -151,6 +152,9 @@ fun ViewerScreen(
             if (error == null) {
                 VaultSession.noteContentsChanged()
                 onClose()
+            } else {
+                // Silently doing nothing was worse than the failure itself.
+                problem = error
             }
         }
     }
@@ -266,6 +270,15 @@ fun ViewerScreen(
                 contentAlignment = Alignment.Center,
             ) { CircularProgressIndicator(color = Color.White) }
         }
+    }
+
+    problem?.let { message ->
+        AlertDialog(
+            onDismissRequest = { problem = null },
+            title = { Text("That did not work") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { problem = null }) { Text("OK") } },
+        )
     }
 
     if (confirmingPutBack) {

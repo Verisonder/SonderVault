@@ -375,14 +375,16 @@ fun VaultScreen(
                 selected.clear()
                 busy = "Writing"
                 scope.launch {
-                    val failed = withContext(Dispatchers.IO) {
-                        chosen.count { VaultExport.putBackOnPhone(context, vault, it).error != null }
+                    val errors = withContext(Dispatchers.IO) {
+                        chosen.mapNotNull { VaultExport.putBackOnPhone(context, vault, it).error }
                     }
                     busy = null
                     note = when {
-                        failed == 0 && chosen.size == 1 -> "Back on your phone."
-                        failed == 0 -> "${chosen.size} back on your phone."
-                        else -> "$failed could not be written and are still here."
+                        errors.isEmpty() && chosen.size == 1 -> "Back on your phone."
+                        errors.isEmpty() -> "${chosen.size} back on your phone."
+                        // Say what actually went wrong. A bare count sends the next
+                        // person guessing, which is exactly what happened here.
+                        else -> "${errors.size} could not be written: ${errors.first()}"
                     }
                     VaultSession.noteContentsChanged()
                 }

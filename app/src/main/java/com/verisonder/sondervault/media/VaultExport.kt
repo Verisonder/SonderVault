@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.verisonder.sondervault.vault.Vault
+import com.verisonder.sondervault.vault.ItemKind
 import com.verisonder.sondervault.vault.VaultItem
 import java.io.File
 import java.io.FileOutputStream
@@ -24,12 +25,12 @@ object VaultExport {
     class Result(val uri: Uri?, val error: String?)
 
     fun putBackOnPhone(context: Context, vault: Vault, item: VaultItem): Result {
-        val isVideo = item.mimeType.startsWith("video/")
+        val kind = ItemKind.of(item.mimeType)
         return try {
             val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                writeThroughMediaStore(context, vault, item, isVideo)
+                writeThroughMediaStore(context, vault, item, kind)
             } else {
-                writeThroughFile(context, vault, item, isVideo)
+                writeThroughFile(context, vault, item, kind)
             }
             // Only now, and only if the bytes are actually somewhere else.
             vault.delete(item)
@@ -43,14 +44,21 @@ object VaultExport {
         context: Context,
         vault: Vault,
         item: VaultItem,
-        isVideo: Boolean,
+        kind: ItemKind,
     ): Uri {
-        val collection = if (isVideo) {
-            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        } else {
-            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        // A document is not a photo and MediaStore knows it: handing application/pdf to
+        // the Images collection is rejected outright, which is what made putting a file
+        // back fail with nothing useful to say.
+        val collection = when (kind) {
+            ItemKind.VIDEO -> MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            ItemKind.IMAGE -> MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            ItemKind.FILE -> MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         }
-        val folder = if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
+        val folder = when (kind) {
+            ItemKind.VIDEO -> Environment.DIRECTORY_MOVIES
+            ItemKind.IMAGE -> Environment.DIRECTORY_PICTURES
+            ItemKind.FILE -> Environment.DIRECTORY_DOWNLOADS
+        }
 
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, item.name)
@@ -61,8 +69,10 @@ object VaultExport {
             // having it back at all — it is lost in a different way.
             //
             // DATE_TAKEN is what gallery apps sort on and is in milliseconds;
-            // DATE_MODIFIED is the fallback and is in seconds.
-            put(MediaStore.MediaColumns.DATE_TAKEN, item.capturedAt)
+            // DATE_MODIFIED is the fallback and is in seconds. Only media carries a
+            // capture time, and offering the column for anything else is a way to have
+            // the insert refused.
+            if (kind != ItemKind.FILE) put(MediaStore.MediaColumns.DATE_TAKEN, item.capturedAt)
             put(MediaStore.MediaColumns.DATE_MODIFIED, item.capturedAt / 1000)
             // Hidden from the gallery until the bytes are all there, so no half-written
             // photo ever appears in someone's camera roll.
@@ -70,8 +80,7 @@ object VaultExport {
         }
 
         val resolver = context.contentResolver
-        val uri = resolver.insert(collection, values)
-            ?: throw IllegalStateException("The gallery would not accept the file")
+        val uri = insert(resolver, collection, values)
 
         try {
             resolver.openOutputStream(uri).use { sink ->
@@ -92,14 +101,36 @@ object VaultExport {
         return uri
     }
 
+    /**
+     * Some devices refuse DATE_TAKEN on a volume that does not carry it, and the insert
+     * throws rather than ignoring the column. Losing the timeline position is a great
+     * deal better than losing the file, so the second attempt drops it.
+     */
+    private fun insert(
+        resolver: android.content.ContentResolver,
+        collection: Uri,
+        values: ContentValues,
+    ): Uri {
+        runCatching { resolver.insert(collection, values) }
+            .getOrNull()
+            ?.let { return it }
+        values.remove(MediaStore.MediaColumns.DATE_TAKEN)
+        return resolver.insert(collection, values)
+            ?: throw IllegalStateException("Android would not accept the file")
+    }
+
     private fun writeThroughFile(
         context: Context,
         vault: Vault,
         item: VaultItem,
-        isVideo: Boolean,
+        kind: ItemKind,
     ): Uri {
         val folder = Environment.getExternalStoragePublicDirectory(
-            if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES,
+            when (kind) {
+                ItemKind.VIDEO -> Environment.DIRECTORY_MOVIES
+                ItemKind.IMAGE -> Environment.DIRECTORY_PICTURES
+                ItemKind.FILE -> Environment.DIRECTORY_DOWNLOADS
+            },
         )
         folder.mkdirs()
         val target = uniqueName(folder, item.name)
