@@ -88,6 +88,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
 
         when (val here = where) {
             Where.Grid -> VaultScreen(
+                store = store,
                 vault = vault,
                 activity = activity,
                 onAdd = { where = Where.Picking },

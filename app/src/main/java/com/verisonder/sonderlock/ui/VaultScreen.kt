@@ -45,23 +45,33 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.verisonder.sonderlock.security.BiometricKey
 import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
+import com.verisonder.sonderlock.media.VaultExport
 import com.verisonder.sonderlock.vault.VaultSession
+import com.verisonder.sonderlock.vault.VaultStore
+import com.verisonder.sonderlock.R
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * What you see once the vault is open.
@@ -77,6 +87,7 @@ import com.verisonder.sonderlock.vault.VaultSession
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun VaultScreen(
+    store: VaultStore,
     vault: Vault,
     activity: FragmentActivity,
     onAdd: () -> Unit,
@@ -97,6 +108,10 @@ fun VaultScreen(
     }
     var note by remember { mutableStateOf<String?>(null) }
     var confirmingDelete by remember { mutableStateOf(false) }
+    var confirmingPutBack by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // Back drops the selection first. Leaving the vault while thirty photos are ticked
     // is never what the gesture meant.
@@ -119,6 +134,12 @@ fun VaultScreen(
                     actions = {
                         IconButton(onClick = { onShare(selected.toList()) }) {
                             Icon(Icons.Filled.Share, contentDescription = "Share")
+                        }
+                        IconButton(onClick = { confirmingPutBack = true }) {
+                            Icon(
+                                painterResource(R.drawable.ic_put_back),
+                                contentDescription = "Put back on phone",
+                            )
                         }
                         IconButton(onClick = { confirmingDelete = true }) {
                             Icon(Icons.Filled.Delete, contentDescription = "Delete")
@@ -239,6 +260,51 @@ fun VaultScreen(
                 }
             }
         }
+    }
+
+    if (confirmingPutBack) {
+        val count = selected.size
+        ConfirmPassword(
+            store = store,
+            vault = vault,
+            activity = activity,
+            reason = if (count == 1) {
+                "This writes the file back to your gallery, where anything on the phone " +
+                    "can read it."
+            } else {
+                "This writes $count files back to your gallery, where anything on the " +
+                    "phone can read them."
+            },
+            confirmLabel = "Put back",
+            onConfirmed = {
+                confirmingPutBack = false
+                val chosen = items.filter { it.id in selected }
+                selected.clear()
+                busy = "Writing"
+                scope.launch {
+                    val failed = withContext(Dispatchers.IO) {
+                        chosen.count { VaultExport.putBackOnPhone(context, vault, it).error != null }
+                    }
+                    busy = null
+                    note = when {
+                        failed == 0 && chosen.size == 1 -> "Back on your phone."
+                        failed == 0 -> "${chosen.size} back on your phone."
+                        else -> "$failed could not be written and are still here."
+                    }
+                    VaultSession.noteContentsChanged()
+                }
+            },
+            onCancel = { confirmingPutBack = false },
+        )
+    }
+
+    if (busy != null) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(busy!!) },
+            text = { CircularProgressIndicator() },
+            confirmButton = {},
+        )
     }
 
     if (confirmingDelete) {

@@ -38,6 +38,7 @@ object DeviceMedia {
             MediaStore.MediaColumns.MIME_TYPE,
             MediaStore.MediaColumns.SIZE,
             MediaStore.MediaColumns.DATE_MODIFIED,
+            MediaStore.MediaColumns.DATE_TAKEN,
         )
         val out = ArrayList<DeviceMediaItem>()
         context.contentResolver.query(
@@ -52,6 +53,9 @@ object DeviceMedia {
             val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
             val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
             val dateColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_MODIFIED)
+            // Not every item has one — a screenshot has no capture time — so it is read
+            // by index rather than demanded, and falls back to the file's own timestamp.
+            val takenColumn = cursor.getColumnIndex(MediaStore.MediaColumns.DATE_TAKEN)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 out.add(
@@ -62,9 +66,13 @@ object DeviceMedia {
                         mimeType = cursor.getString(mimeColumn)
                             ?: if (isVideo) "video/*" else "image/*",
                         size = cursor.getLong(sizeColumn),
-                        // DATE_MODIFIED is in seconds where everything else here is in
-                        // milliseconds, which is an easy thousand-fold mistake to make.
-                        takenAt = cursor.getLong(dateColumn) * 1000L,
+                        // DATE_TAKEN is already milliseconds; DATE_MODIFIED is seconds.
+                        // Mixing them is a thousand-fold error that puts everything in
+                        // 1970 or in the far future.
+                        takenAt = takenColumn.takeIf { it >= 0 }
+                            ?.let { cursor.getLong(it) }
+                            ?.takeIf { it > 0 }
+                            ?: (cursor.getLong(dateColumn) * 1000L),
                         isVideo = isVideo,
                     )
                 )

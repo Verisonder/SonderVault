@@ -56,6 +56,14 @@ object VaultExport {
             put(MediaStore.MediaColumns.DISPLAY_NAME, item.name)
             put(MediaStore.MediaColumns.MIME_TYPE, item.mimeType)
             put(MediaStore.MediaColumns.RELATIVE_PATH, folder)
+            // Put back where it was in the timeline, not at the top of the gallery. A
+            // photo from three years ago that reappears as today's is worse than not
+            // having it back at all — it is lost in a different way.
+            //
+            // DATE_TAKEN is what gallery apps sort on and is in milliseconds;
+            // DATE_MODIFIED is the fallback and is in seconds.
+            put(MediaStore.MediaColumns.DATE_TAKEN, item.capturedAt)
+            put(MediaStore.MediaColumns.DATE_MODIFIED, item.capturedAt / 1000)
             // Hidden from the gallery until the bytes are all there, so no half-written
             // photo ever appears in someone's camera roll.
             put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -98,6 +106,8 @@ object VaultExport {
         FileOutputStream(target).use { sink ->
             vault.open(item).use { reader -> reader.copyTo(sink) }
         }
+        // The only handle on ordering before Android 10 is the file's own timestamp.
+        target.setLastModified(item.capturedAt)
         // Nothing indexes this automatically before Android 10, so the gallery would not
         // show the file until something else happened to trigger a scan.
         MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(item.mimeType), null)
