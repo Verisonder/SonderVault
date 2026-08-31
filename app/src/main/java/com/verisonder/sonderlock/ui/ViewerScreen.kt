@@ -33,6 +33,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,6 +41,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -125,7 +127,6 @@ fun ViewerScreen(
     var busy by remember { mutableStateOf<String?>(null) }
 
     val current = items[pager.currentPage.coerceIn(0, items.lastIndex)]
-    val currentIsVideo = current.mimeType.startsWith("video/")
 
 
     // Zooming out of one photo should not leave the next one stuck.
@@ -158,7 +159,9 @@ fun ViewerScreen(
                     vault = vault,
                     item = item,
                     isCurrent = isCurrent,
+                    controlsVisible = chrome,
                     onTap = { chrome = !chrome },
+                    onZoomChanged = { if (isCurrent) zoomed = it },
                 )
             } else {
                 ImagePage(
@@ -218,14 +221,7 @@ fun ViewerScreen(
                     .fillMaxWidth()
                     .background(Color.Black.copy(alpha = 0.55f))
                     .navigationBarsPadding()
-                    // On a video the player draws its own scrubber and clock along the
-                    // bottom. Sitting on top of them is what made this unreadable before,
-                    // so on video pages these actions move up out of that strip rather
-                    // than sharing it.
-                    .padding(
-                        top = 8.dp,
-                        bottom = if (currentIsVideo) 72.dp else 8.dp,
-                    ),
+                    .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 IconButton(
@@ -411,18 +407,16 @@ private fun decodeFull(vault: Vault, item: VaultItem): ImageBitmap? {
 }
 
 /**
- * Video pages watch the tap rather than taking it.
+ * Video pages draw their own controls.
  *
- * PlayerView handles its own touches, so a Compose gesture layered on top never fires —
- * which is why the bars first would not hide, and then, when they were driven off the
- * controller's own visibility instead, disappeared entirely.
+ * PlayerView's built-in controller was tried three ways and none of them worked: a
+ * Compose gesture on top never fires, watching the touch only sees the taps the
+ * controller does not consume, and following the controller's own visibility left the
+ * app's bars stuck hidden. The overlay consumes a tap when it is visible and ignores one
+ * when it is not, so anything layered around it is permanently half a tap out of step.
  *
- * An OnTouchListener runs before the view's own onTouchEvent and can decline to consume,
- * so the tap is seen here and still reaches the player. One tap therefore hides the
- * controller and the app's bars together, because both are reacting to the same touch.
- *
- * Pinch to zoom still does not work on video: the player takes those events for itself,
- * and only replacing its whole control surface would change that.
+ * With useController off, PlayerView is just a surface and Compose owns every touch.
+ * There is nothing left to keep in sync, and pinch to zoom works on video as a result.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
@@ -430,7 +424,9 @@ private fun VideoPage(
     vault: Vault,
     item: VaultItem,
     isCurrent: Boolean,
+    controlsVisible: Boolean,
     onTap: () -> Unit,
+    onZoomChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val player = remember(item.id) {
@@ -442,6 +438,12 @@ private fun VideoPage(
                 prepare()
             }
     }
+
+    var playing by remember(item.id) { mutableStateOf(false) }
+    var position by remember(item.id) { mutableLongStateOf(0L) }
+    var duration by remember(item.id) { mutableLongStateOf(0L) }
+    var scrubbing by remember(item.id) { mutableStateOf(false) }
+
     // Released when the page leaves, otherwise every swipe leaves a player holding a
     // decrypted read open behind it.
     DisposableEffect(item.id) { onDispose { player.release() } }
@@ -453,39 +455,88 @@ private fun VideoPage(
         onDispose { player.playWhenReady = false }
     }
 
-    AndroidView(
-        factory = { context ->
-            PlayerView(context).apply {
-                this.player = player
-                useController = true
-                controllerAutoShow = true
-                controllerHideOnTouch = true
-                // Never on a timer, so the only thing that moves the controller is a
-                // tap — which is the same thing that moves the app's bars. A timeout
-                // would let the two drift apart.
-                controllerShowTimeoutMs = 0
-                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+    // Polled rather than driven by listeners. Two hundred milliseconds is under what
+    // anyone notices on a scrubber, and it avoids keeping several listeners alive across
+    // a pager that is creating and destroying players as it goes.
+    LaunchedEffect(item.id, isCurrent) {
+        while (isCurrent) {
+            playing = player.isPlaying
+            duration = player.duration.coerceAtLeast(0L)
+            if (!scrubbing) position = player.currentPosition.coerceAtLeast(0L)
+            kotlinx.coroutines.delay(200)
+        }
+    }
 
-                val taps = android.view.GestureDetector(
-                    context,
-                    object : android.view.GestureDetector.SimpleOnGestureListener() {
-                        override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
-                            onTap()
-                            return false
-                        }
-                    },
-                )
-                // Returning false is the whole point: the player still gets the event and
-                // toggles its own controller. Dragging the scrubber never arrives here,
-                // because the time bar consumes it before this view sees it.
-                setOnTouchListener { _, event ->
-                    taps.onTouchEvent(event)
-                    false
+    Box(modifier = Modifier.fillMaxSize()) {
+        AndroidView(
+            factory = { viewContext ->
+                PlayerView(viewContext).apply {
+                    this.player = player
+                    // The whole reason this works: with no controller, the view stops
+                    // competing for touches.
+                    useController = false
                 }
+            },
+            modifier = Modifier.fillMaxSize().zoomable(onTap, onZoomChanged),
+        )
+
+        AnimatedVisibility(
+            visible = controlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    // Clear of the action bar below, which is where share, put back and
+                    // delete live.
+                    .padding(start = 8.dp, end = 16.dp, bottom = 64.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = {
+                    if (player.isPlaying) player.pause() else player.play()
+                    playing = !playing
+                }) {
+                    Icon(
+                        painterResource(
+                            if (playing) R.drawable.ic_pause else R.drawable.ic_play,
+                        ),
+                        contentDescription = if (playing) "Pause" else "Play",
+                        tint = Color.White,
+                    )
+                }
+                Text(
+                    clock(position),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White,
+                )
+                Slider(
+                    value = if (duration > 0) position.toFloat() / duration else 0f,
+                    onValueChange = {
+                        scrubbing = true
+                        position = (it * duration).toLong()
+                    },
+                    onValueChangeFinished = {
+                        player.seekTo(position)
+                        scrubbing = false
+                    },
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                Text(
+                    clock(duration),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White,
+                )
             }
-        },
-        modifier = Modifier.fillMaxSize(),
-    )
+        }
+    }
+}
+
+private fun clock(millis: Long): String {
+    val total = (millis / 1000).coerceAtLeast(0)
+    return "%d:%02d".format(total / 60, total % 60)
 }
 
 private fun dayOf(millis: Long): String =
