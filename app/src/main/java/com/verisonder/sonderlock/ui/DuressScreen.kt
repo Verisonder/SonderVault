@@ -47,7 +47,7 @@ import kotlinx.coroutines.withContext
 private const val MINIMUM_LENGTH = 8
 
 /**
- * Setting the second password.
+ * Setting the duress password.
  *
  * Two modes, and the difference matters enough to be a choice rather than a default:
  * one opens a separate set of photos and changes nothing, the other opens the same
@@ -85,7 +85,7 @@ fun DuressScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Second password") },
+                title = { Text("Duress password") },
                 navigationIcon = {
                     IconButton(onClick = onClose, enabled = !working) {
                         Icon(Icons.Filled.Close, contentDescription = "Close")
@@ -102,7 +102,7 @@ fun DuressScreen(
                 .padding(24.dp),
         ) {
             Text(
-                "A second password that opens a different set of photos. Anyone made to " +
+                "A duress password that opens a different set of photos. Anyone made to " +
                     "hand over a password can hand over this one.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -127,7 +127,7 @@ fun DuressScreen(
             OutlinedTextField(
                 value = duress,
                 onValueChange = { duress = it; problem = null },
-                label = { Text("Second password") },
+                label = { Text("Duress password") },
                 singleLine = true,
                 enabled = !working,
                 isError = tooShort || sameAsMain,
@@ -152,7 +152,7 @@ fun DuressScreen(
             OutlinedTextField(
                 value = confirm,
                 onValueChange = { confirm = it; problem = null },
-                label = { Text("Second password again") },
+                label = { Text("Duress password again") },
                 singleLine = true,
                 enabled = !working,
                 isError = mismatch,
@@ -250,7 +250,7 @@ fun DuressScreen(
 
             Spacer(Modifier.height(12.dp))
             Text(
-                "Next you choose which photos the second password shows. Pick ordinary " +
+                "Next you choose which photos the duress password shows. Pick ordinary " +
                     "ones — an empty vault gives the game away.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

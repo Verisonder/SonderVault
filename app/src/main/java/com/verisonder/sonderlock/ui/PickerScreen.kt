@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,6 +80,7 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
     var media by remember { mutableStateOf<List<DeviceMediaItem>?>(null) }
     val selected = remember { mutableListOf<Long>().toMutableStateList() }
     var working by remember { mutableStateOf<String?>(null) }
+    val grid = rememberLazyGridState()
     val scope = rememberCoroutineScope()
 
     val askForAccess = rememberLauncherForActivityResult(
@@ -129,6 +132,21 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                 navigationIcon = {
                     IconButton(onClick = onDone, enabled = working == null) {
                         Icon(Icons.Filled.Close, contentDescription = "Cancel")
+                    }
+                },
+                actions = {
+                    val all = media.orEmpty()
+                    if (all.isNotEmpty() && working == null) {
+                        TextButton(onClick = {
+                            if (selected.size == all.size) {
+                                selected.clear()
+                            } else {
+                                selected.clear()
+                                selected.addAll(all.map { it.id })
+                            }
+                        }) {
+                            Text(if (selected.size == all.size) "None" else "All")
+                        }
                     }
                 },
             )
@@ -199,16 +217,30 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                         style = MaterialTheme.typography.titleMedium)
                 }
 
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 104.dp),
-                    contentPadding = PaddingValues(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(media!!, key = { it.id }) { item ->
-                        val isSelected = item.id in selected
-                        PickerTile(item, isSelected) {
-                            if (isSelected) selected.remove(item.id) else selected.add(item.id)
+                else -> {
+                    val all = media!!
+                    LazyVerticalGrid(
+                        state = grid,
+                        columns = GridCells.Adaptive(minSize = 104.dp),
+                        contentPadding = PaddingValues(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.dragToSelect(
+                            state = grid,
+                            onStart = { index ->
+                                all.getOrNull(index)?.id?.let { if (it !in selected) selected.add(it) }
+                            },
+                            onOver = { index ->
+                                all.getOrNull(index)?.id?.let { if (it !in selected) selected.add(it) }
+                            },
+                            onFinish = {},
+                        ),
+                    ) {
+                        itemsIndexed(all, key = { _, item -> item.id }) { _, item ->
+                            val isSelected = item.id in selected
+                            PickerTile(item, isSelected) {
+                                if (isSelected) selected.remove(item.id) else selected.add(item.id)
+                            }
                         }
                     }
                 }

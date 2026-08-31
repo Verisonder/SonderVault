@@ -74,7 +74,7 @@ fun SettingsScreen(
         ) {
             SectionLabel("Vault")
             Row(
-                title = "Second password",
+                title = "Duress password",
                 detail = "Opens a different set of photos.",
                 onClick = onDuress,
             )

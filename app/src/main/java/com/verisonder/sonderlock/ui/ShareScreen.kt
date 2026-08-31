@@ -18,7 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -83,6 +84,7 @@ fun ShareScreen(
     val scope = rememberCoroutineScope()
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
     val selected = remember { mutableListOf<String>().toMutableStateList() }
+    val grid = rememberLazyGridState()
 
     var phrase by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmingPassword by remember { mutableStateOf(false) }
@@ -157,6 +159,20 @@ fun ShareScreen(
                         Icon(Icons.Filled.Close, contentDescription = "Close")
                     }
                 },
+                actions = {
+                    if (!everything && !finished && items.isNotEmpty() && working == null) {
+                        TextButton(onClick = {
+                            if (selected.size == items.size) {
+                                selected.clear()
+                            } else {
+                                selected.clear()
+                                selected.addAll(items.map { it.id })
+                            }
+                        }) {
+                            Text(if (selected.size == items.size) "None" else "All")
+                        }
+                    }
+                },
             )
         },
         bottomBar = {
@@ -227,12 +243,23 @@ fun ShareScreen(
                 }
 
                 else -> LazyVerticalGrid(
+                    state = grid,
                     columns = GridCells.Adaptive(minSize = 104.dp),
                     contentPadding = PaddingValues(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.dragToSelect(
+                        state = grid,
+                        onStart = { index ->
+                            items.getOrNull(index)?.id?.let { if (it !in selected) selected.add(it) }
+                        },
+                        onOver = { index ->
+                            items.getOrNull(index)?.id?.let { if (it !in selected) selected.add(it) }
+                        },
+                        onFinish = {},
+                    ),
                 ) {
-                    items(items, key = { it.id }) { item ->
+                    itemsIndexed(items, key = { _, item -> item.id }) { _, item ->
                         ShareTile(vault, item, item.id in selected) {
                             if (item.id in selected) selected.remove(item.id)
                             else selected.add(item.id)
