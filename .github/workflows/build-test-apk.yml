@@ -61,7 +61,10 @@ jobs:
             exit 0
           fi
 
-          SLUG="${GITHUB_REF_NAME//\//-}"
+          # the branch already starts with test/, so strip it before prefixing or
+          # the tag reads test-test-something
+          SLUG="${GITHUB_REF_NAME#test/}"
+          SLUG="${SLUG//\//-}"
           TAG="test-$SLUG"
           APK=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
           if [ -z "$APK" ]; then

@@ -3,7 +3,6 @@ package com.verisonder.sonderlock.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,8 +41,7 @@ import kotlinx.coroutines.withContext
  * No app name, no logo, no heading.
  *
  * A lock screen that announces what it guards is a lock screen that tells anyone glancing
- * at the phone that there is something here worth taking. The field is placed low, where
- * a thumb already is.
+ * at the phone that there is something here worth taking.
  *
  * A password that opens nothing gets the same flat answer whichever password it was, so
  * nothing here says whether a second one exists.
@@ -105,11 +103,9 @@ fun UnlockScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 28.dp, vertical = 40.dp),
-        verticalArrangement = Arrangement.Bottom,
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.Start,
     ) {
-        Spacer(Modifier.fillMaxHeight(0.55f))
-
         OutlinedTextField(
             value = password,
             onValueChange = { password = it; problem = null },
