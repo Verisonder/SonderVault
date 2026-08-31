@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import com.verisonder.sonderlock.media.DeviceMediaItem
 import com.verisonder.sonderlock.media.MediaImporter
+import com.verisonder.sonderlock.media.ThumbnailMaker
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import kotlinx.coroutines.Dispatchers
@@ -32,14 +33,23 @@ fun rememberDeviceThumbnail(item: DeviceMediaItem): State<ImageBitmap?> {
     }
 }
 
+/**
+ * A tile's thumbnail, made on the spot if the item does not have one.
+ *
+ * Items restored from a bundle arrive without thumbnails, and a video frame can fail to
+ * decode at import. Regenerating here means a grey square fixes itself the first time it
+ * is looked at, rather than staying grey for the life of the vault.
+ */
 @Composable
 fun rememberVaultThumbnail(vault: Vault, item: VaultItem): State<ImageBitmap?> =
     produceState<ImageBitmap?>(initialValue = null, item.id) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                vault.readThumbnail(item)?.let {
-                    BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap()
+                val stored = vault.readThumbnail(item)
+                val bytes = stored ?: ThumbnailMaker.make(vault, item)?.also {
+                    runCatching { vault.attachThumbnail(item, it) }
                 }
+                bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
             }.getOrNull()
         }
     }

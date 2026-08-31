@@ -114,6 +114,27 @@ class Vault internal constructor(
         }
     }
 
+    /**
+     * Attach a thumbnail to an item that has none.
+     *
+     * Thumbnails are derived data, not content: they can be rebuilt from the item at any
+     * time. Items restored from a bundle arrive without one, and a video frame can fail
+     * to decode at import, so the grid regenerates on demand rather than leaving a grey
+     * square forever.
+     *
+     * Synchronised because a screenful of tiles can discover they are missing thumbnails
+     * at the same moment, and each one rewrites the index.
+     */
+    @Synchronized
+    fun attachThumbnail(item: VaultItem, thumbnail: ByteArray): VaultItem {
+        VaultFileWriter(thumbnailFile(item.id), Crypto.hkdf(item.fileKey, INFO_THUMB)).use {
+            it.write(thumbnail)
+        }
+        val updated = item.copy(hasThumbnail = true)
+        writeIndex(items().map { if (it.id == item.id) updated else it })
+        return updated
+    }
+
     fun delete(item: VaultItem) {
         contentFile(item.id).delete()
         thumbnailFile(item.id).delete()
