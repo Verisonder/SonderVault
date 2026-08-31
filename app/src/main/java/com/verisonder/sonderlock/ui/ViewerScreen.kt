@@ -8,8 +8,11 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +53,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -153,9 +157,7 @@ fun ViewerScreen(
                     vault = vault,
                     item = item,
                     isCurrent = isCurrent,
-                    controlsVisible = chrome,
-                    onTap = { chrome = !chrome },
-                    onZoomChanged = { if (isCurrent) zoomed = it },
+                    onControlsVisible = { if (isCurrent) chrome = it },
                 )
             } else {
                 ImagePage(
@@ -333,11 +335,24 @@ private fun Modifier.zoomable(
             )
         }
         .pointerInput(Unit) {
-            detectTransformGestures { _, pan, zoom, _ ->
-                scale = (scale * zoom).coerceIn(1f, MAX_ZOOM)
-                offset = if (scale > 1f) offset + pan else Offset.Zero
-                clamp()
-                onZoomChanged(scale > 1f)
+            // Hand-rolled rather than detectTransformGestures, which consumes every
+            // pointer change including a plain one-finger drag — so the pager never saw
+            // a swipe and pages stopped turning. Events are only taken when there are
+            // two fingers down, or when the photo is already zoomed in and a drag means
+            // panning rather than turning the page.
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
+                do {
+                    val event = awaitPointerEvent()
+                    val pinching = event.changes.size > 1
+                    if (pinching || scale > 1f) {
+                        scale = (scale * event.calculateZoom()).coerceIn(1f, MAX_ZOOM)
+                        offset = if (scale > 1f) offset + event.calculatePan() else Offset.Zero
+                        clamp()
+                        onZoomChanged(scale > 1f)
+                        event.changes.forEach { if (it.positionChanged()) it.consume() }
+                    }
+                } while (event.changes.any { it.pressed })
             }
         }
         .graphicsLayer {
@@ -394,15 +409,24 @@ private fun decodeFull(vault: Vault, item: VaultItem): ImageBitmap? {
     return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
 }
 
+/**
+ * Video pages let the player own the tap.
+ *
+ * PlayerView handles its own touches and shows or hides its controller on them, so a tap
+ * handler layered on top never fires — which is why the bars sat there and would not go
+ * away. Instead of fighting it, the bars follow the controller: whatever the player
+ * decides is visible, the rest of the screen matches.
+ *
+ * The cost is that pinch to zoom does not work on video, since the gestures never reach
+ * this side. Worth saying plainly rather than pretending it does.
+ */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun VideoPage(
     vault: Vault,
     item: VaultItem,
     isCurrent: Boolean,
-    controlsVisible: Boolean,
-    onTap: () -> Unit,
-    onZoomChanged: (Boolean) -> Unit,
+    onControlsVisible: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val player = remember(item.id) {
@@ -414,8 +438,6 @@ private fun VideoPage(
                 prepare()
             }
     }
-    var view by remember { mutableStateOf<PlayerView?>(null) }
-
     // Released when the page leaves, otherwise every swipe leaves a player holding a
     // decrypted read open behind it.
     DisposableEffect(item.id) { onDispose { player.release() } }
@@ -427,25 +449,25 @@ private fun VideoPage(
         onDispose { player.playWhenReady = false }
     }
 
-    // The player's scrubber follows the bars rather than its own timeout, so one tap
-    // governs everything on screen.
-    LaunchedEffect(controlsVisible, view) {
-        val current = view ?: return@LaunchedEffect
-        if (controlsVisible) current.showController() else current.hideController()
-    }
-
     AndroidView(
-        factory = {
-            PlayerView(it).apply {
+        factory = { context ->
+            PlayerView(context).apply {
                 this.player = player
                 useController = true
-                controllerAutoShow = false
+                controllerAutoShow = true
+                controllerHideOnTouch = true
+                // Never on a timer. The controller goes away when tapped and not before,
+                // so the bars do not vanish out from under a finger.
                 controllerShowTimeoutMs = 0
                 setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                view = this
+                setControllerVisibilityListener(
+                    PlayerView.ControllerVisibilityListener { visibility ->
+                        onControlsVisible(visibility == android.view.View.VISIBLE)
+                    }
+                )
             }
         },
-        modifier = Modifier.fillMaxSize().zoomable(onTap, onZoomChanged),
+        modifier = Modifier.fillMaxSize(),
     )
 }
 
