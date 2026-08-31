@@ -62,6 +62,17 @@ class VaultStore(
         )
     }
 
+    /**
+     * Open from a master key that has already been recovered — the biometric path, where
+     * there is no password to derive anything from.
+     *
+     * Only ever the real vault. A fingerprint that opened the decoy would be a fingerprint
+     * that could be pressed against the phone by someone holding your hand, and there is
+     * no gesture for "open the other one".
+     */
+    fun openWithMasterKey(masterKey: ByteArray): Opened =
+        Opened(openVault(masterKey), isDecoy = false, wiped = false)
+
     fun unlock(password: ByteArray): Opened? {
         if (!isConfigured) return null
         val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return null

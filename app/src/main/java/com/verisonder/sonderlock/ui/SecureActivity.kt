@@ -2,7 +2,7 @@ package com.verisonder.sonderlock.ui
 
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 
 /**
  * Every activity in the app extends this.
@@ -17,8 +17,10 @@ import androidx.activity.ComponentActivity
  * What it does not stop: a second phone pointed at the screen, and a rooted device. The
  * README says so, and any copy shown to the user should say so too rather than implying
  * the screen cannot be captured at all.
+ *
+ * FragmentActivity rather than ComponentActivity because BiometricPrompt requires one.
  */
-abstract class SecureActivity : ComponentActivity() {
+abstract class SecureActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)

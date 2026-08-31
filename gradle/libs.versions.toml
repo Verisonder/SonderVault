@@ -6,6 +6,7 @@ lifecycle = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2024.12.01"
 bouncycastle = "1.79"
+biometric = "1.1.0"
 junit = "4.13.2"
 
 [libraries]
@@ -24,6 +25,9 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 # Android ships its own Bouncy Castle repackaged under com.android.org.bouncycastle,
 # and registering a second one is how provider conflicts start.
 bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+
+# BiometricPrompt needs a FragmentActivity, which is why SecureActivity extends one.
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

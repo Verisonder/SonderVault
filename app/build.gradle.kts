@@ -10,7 +10,11 @@ android {
 
     defaultConfig {
         applicationId = "com.verisonder.sonderlock"
-        minSdk = 26
+        // 28 rather than 26. Below 28 androidx.biometric falls back to its own dialog,
+        // which expects AppCompat styling this app does not carry, and
+        // StrongBoxUnavailableException does not exist to catch. Android 9 is an
+        // unremarkable floor and buying back those two would cost more than it is worth.
+        minSdk = 28
         targetSdk = 35
         versionCode = 1
         versionName = "0.1"
@@ -111,6 +115,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.bouncycastle)
+    implementation(libs.androidx.biometric)
 
     testImplementation(libs.junit)
 }

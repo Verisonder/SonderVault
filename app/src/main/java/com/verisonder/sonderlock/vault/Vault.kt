@@ -145,6 +145,16 @@ class Vault internal constructor(
     fun sizeOnDisk(): Long =
         directory.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
+    /**
+     * The master key, for wrapping under the biometric key and nothing else.
+     *
+     * It is here reluctantly. Every other operation goes through this class precisely so
+     * the key stays put, and the fingerprint path is the one case that genuinely needs
+     * the raw bytes, because the Android Keystore has to be handed something to seal.
+     * Returns a copy so the caller can wipe it without emptying the vault's own.
+     */
+    internal fun masterKeyForBiometrics(): ByteArray = masterKey.copyOf()
+
     private fun contentFile(id: String) = File(itemsDir, "$id.slf")
 
     private fun thumbnailFile(id: String) = File(itemsDir, "$id.thb")

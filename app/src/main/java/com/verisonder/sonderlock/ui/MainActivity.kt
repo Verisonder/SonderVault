@@ -2,46 +2,31 @@ package com.verisonder.sonderlock.ui
 
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import com.verisonder.sonderlock.ui.theme.SonderLockTheme
+import com.verisonder.sonderlock.vault.VaultSession
+import com.verisonder.sonderlock.vault.VaultStore
 
-/**
- * Placeholder. There is no vault UI yet — the crypto layer landed first and this exists
- * so the module produces an installable APK and CI has something to build.
- */
 class MainActivity : SecureActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val store = VaultStore(filesDir)
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Placeholder()
-                }
+            SonderLockTheme {
+                AppRoot(store, this)
             }
         }
     }
-}
 
-@Preview(showBackground = true)
-@Composable
-private fun Placeholder() {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("SonderLock", style = MaterialTheme.typography.headlineMedium)
-        Text("Nothing here yet.", style = MaterialTheme.typography.bodyMedium)
+    /**
+     * Locking here rather than on a timer. The vault is open exactly as long as it is on
+     * screen, so a phone taken out of someone's hand is a phone with a locked vault.
+     *
+     * onStop also fires when the app starts something itself — the photo picker, a share
+     * sheet — which is why the session can be told to expect that and skip one lock.
+     */
+    override fun onStop() {
+        super.onStop()
+        VaultSession.lockUnlessLeavingBriefly()
     }
 }
