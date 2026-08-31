@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "SonderLock"
+rootProject.name = "SonderVault"
 include(":app")

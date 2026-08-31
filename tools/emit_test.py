@@ -24,7 +24,7 @@ cases = "\n".join(
     for name in ["empty", "short", "exact_block", "multi_block"]
 )
 
-out = f'''package com.verisonder.sonderlock.crypto
+out = f'''package com.verisonder.sondervault.crypto
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals

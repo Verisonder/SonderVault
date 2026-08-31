@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Only ever fired by pushing a tag. Nothing here runs on an ordinary commit, so a release
+# is always something someone decided to do.
+jobs:
+  release:
+    name: Build and publish a release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore the signing key
+        shell: bash
+        env:
+          RELEASE_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE" ]; then
+            echo "::error::RELEASE_KEYSTORE is not set. Nothing can be signed."
+            exit 1
+          fi
+          echo "$RELEASE_KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Tests
+        shell: bash
+        run: gradle --no-daemon testDebugUnitTest
+
+      - name: Build
+        shell: bash
+        env:
+          RELEASE_STORE_FILE: ${{ runner.temp }}/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+
+      - name: Publish
+        shell: bash
+        env:
+          # A release published with the built-in token is credited to
+          # github-actions[bot], and a release author cannot be changed afterwards.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          NAMED="SonderVault-$VERSION.apk"
+          cp "$APK" "$NAMED"
+
+          gh release create "$GITHUB_REF_NAME" "$NAMED" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SonderVault $VERSION" \
+            --notes-file docs/releasenote/release_notes_$GITHUB_REF_NAME.md

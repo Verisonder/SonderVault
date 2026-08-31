@@ -14,7 +14,7 @@ _state = [0]
 def fake_urandom(n):
     out = b""
     while len(out) < n:
-        out += hashlib.sha256(b"sonderlock-vectors" + _state[0].to_bytes(4, "big")).digest()
+        out += hashlib.sha256(b"sondervault-vectors" + _state[0].to_bytes(4, "big")).digest()
         _state[0] += 1
     return out[:n]
 

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.verisonder.sonderlock"
+    namespace = "com.verisonder.sondervault"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.verisonder.sonderlock"
+        applicationId = "com.verisonder.sondervault"
         // 28 rather than 26. Below 28 androidx.biometric falls back to its own dialog,
         // which expects AppCompat styling this app does not carry, and
         // StrongBoxUnavailableException does not exist to catch. Android 9 is an
@@ -17,7 +17,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1"
 
         // No test runner is declared and no androidTest source set exists. Everything
         // in the crypto layer is plain JVM code and is tested as such; adding an
@@ -112,10 +112,19 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.bouncycastle)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.zxing.core)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
 
     testImplementation(libs.junit)
 }

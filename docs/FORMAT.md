@@ -1,4 +1,4 @@
-# SonderLock — on-disk formats
+# SonderVault — on-disk formats
 
 Version 1. Every layout here is exercised by `tools/test_reference.py` and pinned by
 `app/src/test/resources/vectors.json`.
@@ -37,7 +37,7 @@ enough that someone watching the screen would notice.
 
 ```
 offset  size  field
-     0     4  magic "SLK1"
+     0     4  magic "SVK1"
      4     1  version = 1
      5     4  Argon2 memory, KiB, big endian     (65536)
      9     4  Argon2 iterations, big endian      (3)
@@ -91,7 +91,7 @@ AES-256-CTR in blocks, each block authenticated with HMAC-SHA256. Encrypt-then-M
 
 ```
 offset  size  field
-     0     4  magic "SLF1"
+     0     4  magic "SVF1"
      4     1  version = 1
      5     1  block size, log2      (20 = 1 MiB)
      6     8  nonce
@@ -108,9 +108,13 @@ writes no blocks at all and is 54 bytes.
 Keys are split from the file key:
 
 ```
-encKey = HKDF-SHA256-Expand(fileKey, "sonderlock:enc:v1", 32)
-macKey = HKDF-SHA256-Expand(fileKey, "sonderlock:mac:v1", 32)
+encKey = HKDF-SHA256-Expand(fileKey, "sondervault:enc:v1", 32)
+macKey = HKDF-SHA256-Expand(fileKey, "sondervault:mac:v1", 32)
 ```
+
+These strings are domain separation labels, not decoration. Changing one derives a
+different key, so a file written under an old label cannot be read under a new one. They
+were renamed once, before the app was released, and should not be renamed again.
 
 Extract is skipped because the input is already a uniform 256-bit key.
 
@@ -148,7 +152,7 @@ block 0 from playing.
 
 ---
 
-## 4. `.sonderlock` bundles
+## 4. `.sondervault` bundles
 
 Sharing and backup use one format. A backup is a share of everything.
 
@@ -157,19 +161,30 @@ that bundle and nothing else.
 
 ```
 offset  size  field
-     0     8  magic "SLBUNDL1"
+     0     8  magic "SVBUNDL1"
      8     1  version = 1
      9     4  Argon2 memory, KiB, big endian
     13     4  Argon2 iterations, big endian
     17     1  Argon2 parallelism
     18    16  salt
     34    12  GCM nonce
-    46     -  sealed manifest (AES-256-GCM, header as associated data)
-     -     -  entries, each an .slf container
+    46     4  sealed manifest length, big endian
+    50     -  sealed manifest, with bytes 0..49 as associated data
+     -     -  entries, each a complete .slf container
 ```
 
 The manifest holds one record per entry: original filename, media type, capture date,
-byte length, offset within the bundle, and the entry's file key.
+byte length, offset within the entries region, container length, and the entry's file key.
+
+Offsets are relative to the start of the entries region rather than to the file, and
+they have to be: the manifest sits in front of the entries and its own length depends on
+the offsets it contains, so absolute positions would be circular.
+
+**Entries are copied across unchanged, not re-encrypted.** A container is already
+encrypted under its own key, so exporting is a file copy rather than a second full pass of
+AES over every photo. Restoring goes the other way — items are decrypted and written again
+under fresh keys, so a bundle that leaks later, with its phrase, says nothing about the
+vault it was restored into.
 
 `bundleKey = Argon2id(phrase, salt)`. Six words from the BIP-39 English list is 66 bits;
 against Argon2id at 64 MiB an offline search of that space is not a thing anyone does.
@@ -179,7 +194,7 @@ file at 4 GB.
 
 ### The honest part
 
-"Only opens in SonderLock" is the file format, not enforcement. The source is public, so
+"Only opens in SonderVault" is the file format, not enforcement. The source is public, so
 anyone with the code and a copy of the repository can decrypt a bundle. The encryption is
 what protects it; needing the app is convenience. This belongs in the README rather than
 a claim to be stronger than it is.

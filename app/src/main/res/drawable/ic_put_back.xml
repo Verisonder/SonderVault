@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    An arrow coming down onto a line: the same shape every download button uses, which is
+    the point — "out of the app and onto the phone" is what people already read into it.
+    Drawn here rather than taken from the extended icon set, which is megabytes for one
+    glyph.
+
+    No android:tint here. A theme attribute in a drawable fails resource linking against a
+    theme that does not carry it, and it fails in one build variant while the other stays
+    green. Compose's Icon applies the tint instead.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M19,9h-4V3H9v6H5l7,7 7,-7zM5,18v2h14v-2H5z" />
+</vector>
