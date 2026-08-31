@@ -1,0 +1,136 @@
+name: Test APK
+
+on:
+  push:
+    branches:
+      - 'test/**'
+  workflow_dispatch:
+
+# Signed with the real release key, so a test build installs straight over a published
+# one and keeps the vault. A debug APK would not, and reinstalling means losing
+# everything in it.
+jobs:
+  build:
+    name: Build and publish a test APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Restore the signing key
+        shell: bash
+        env:
+          RELEASE_KEYSTORE: ${{ secrets.RELEASE_KEYSTORE }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE" ]; then
+            echo "::error::RELEASE_KEYSTORE is not set. Nothing can be signed."
+            exit 1
+          fi
+          echo "$RELEASE_KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build
+        shell: bash
+        env:
+          RELEASE_STORE_FILE: ${{ runner.temp }}/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleRelease 2>&1 | tee -a build-output.txt
+
+      - name: Publish to vs-artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.ARTIFACTS_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::ARTIFACTS_PAT is not set, so nothing was published."
+            echo "A build that succeeds with no APK anywhere looks exactly like this."
+            exit 0
+          fi
+
+          SLUG="${GITHUB_REF_NAME//\//-}"
+          TAG="test-$SLUG"
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "::error::No APK was produced."
+            exit 1
+          fi
+          NAMED="SonderLock-$SLUG-${GITHUB_SHA:0:7}.apk"
+          cp "$APK" "$NAMED"
+
+          # One release per branch rather than a pile: the tag is deleted and recreated
+          # on every push.
+          gh release delete "$TAG" --repo Verisonder/vs-artifacts --yes --cleanup-tag || true
+          gh release create "$TAG" "$NAMED" \
+            --repo Verisonder/vs-artifacts \
+            --title "SonderLock $SLUG" \
+            --notes "Branch \`$GITHUB_REF_NAME\` at \`${GITHUB_SHA:0:7}\`, built $(date -u +%F\ %T) UTC." \
+            --target main
+          echo "Published $NAMED to vs-artifacts as $TAG"
+
+      - name: Record the failure
+        if: failure()
+        shell: bash
+        env:
+          ARTIFACTS_PAT: ${{ secrets.ARTIFACTS_PAT }}
+        run: |
+          if [ -z "$ARTIFACTS_PAT" ]; then
+            echo "ARTIFACTS_PAT is not set; skipping."
+            exit 0
+          fi
+          {
+            echo "repository : $GITHUB_REPOSITORY (test apk)"
+            echo "branch     : $GITHUB_REF_NAME"
+            echo "commit     : $GITHUB_SHA"
+            echo "run        : $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "recorded   : $(date -u +%FT%TZ)"
+            echo
+            echo "--- errors ---"
+            grep -E '^(e:|FAILURE|\* What went wrong|Caused by)' build-output.txt | head -n 80 || true
+            echo
+            echo "--- tail ---"
+            tail -n 200 build-output.txt || true
+          } > failure.txt
+          python3 - <<'PY'
+          import base64, json, os, urllib.error, urllib.request
+
+          url = "https://api.github.com/repos/Verisonder/vs-artifacts/contents/failures/latest.txt"
+          headers = {"Authorization": "Bearer " + os.environ["ARTIFACTS_PAT"],
+                     "Accept": "application/vnd.github+json"}
+
+          def call(method, body=None):
+              req = urllib.request.Request(url, method=method, headers=headers,
+                                           data=json.dumps(body).encode() if body else None)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return r.status, json.loads(r.read() or b"{}")
+              except urllib.error.HTTPError as e:
+                  return e.code, json.loads(e.read() or b"{}")
+
+          status, existing = call("GET")
+          body = {
+              "message": "Record a test APK build failure",
+              "content": base64.b64encode(open("failure.txt", "rb").read()).decode(),
+              "committer": {"name": "Verisonder",
+                            "email": "verisonder@users.noreply.github.com"},
+          }
+          if status == 200:
+              body["sha"] = existing["sha"]
+          status, result = call("PUT", body)
+          print("recorded to vs-artifacts:", status)
+          if status not in (200, 201):
+              print(result)
+          PY
