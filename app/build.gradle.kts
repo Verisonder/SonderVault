@@ -17,7 +17,7 @@ android {
         minSdk = 28
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1"
 
         // No test runner is declared and no androidTest source set exists. Everything
         // in the crypto layer is plain JVM code and is tested as such; adding an
