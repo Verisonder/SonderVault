@@ -99,6 +99,7 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
     val confirmDelete = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { _: androidx.activity.result.ActivityResult ->
+        VaultSession.externalActivityFinished()
         working = null
         onDone()
     }

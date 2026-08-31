@@ -21,7 +21,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -85,6 +84,7 @@ fun ShareScreen(
     val saveCode = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain"),
     ) { uri ->
+        VaultSession.externalActivityFinished()
         if (uri != null) {
             runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { out ->
@@ -101,6 +101,7 @@ fun ShareScreen(
     val saveBundle = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { uri ->
+        VaultSession.externalActivityFinished()
         if (uri == null) {
             working = null
             return@rememberLauncherForActivityResult
@@ -120,10 +121,18 @@ fun ShareScreen(
         }
     }
 
+    // Generated fresh for every export. A code that leaks costs this file and nothing
+    // else, and there is no single code that would open everything ever shared.
+    //
+    // Shown before the file is written, not after. Writing means opening the system's
+    // document picker, and anything that happens on the far side of leaving the app is
+    // something that can go wrong while the only copy of the code is still in memory.
+    // This way the code is on screen before anything can interrupt.
     fun begin() {
-        // Generated fresh for every export. A code that leaks costs this file and nothing
-        // else, and there is no single code that would open everything ever shared.
         phrase = Wordlist.of(context).generate()
+    }
+
+    fun saveFile() {
         VaultSession.expectingExternalActivity = true
         saveBundle.launch("$fileName.${Bundle.EXTENSION}")
     }
@@ -134,7 +143,8 @@ fun ShareScreen(
                 title = {
                     Text(
                         when {
-                            finished -> "Write this down"
+                            finished -> "Saved"
+                            phrase.isNotEmpty() -> "Write this down"
                             isBackup -> "Back up everything"
                             chosen.size == 1 -> "Share 1 item"
                             else -> "Share ${chosen.size} items"
@@ -157,7 +167,7 @@ fun ShareScreen(
                     Text(working!!, style = MaterialTheme.typography.bodyMedium)
                 }
 
-                finished -> Column(
+                phrase.isNotEmpty() -> Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
@@ -179,17 +189,29 @@ fun ShareScreen(
                         saveCode.launch("$fileName-code.txt")
                     })
                     Spacer(Modifier.height(20.dp))
-                    Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("Done") }
-                }
-
-                problem != null -> Centred {
-                    Text(
-                        problem!!,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    TextButton(onClick = { problem = null }) { Text("Try again") }
+                    problem?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    if (finished) {
+                        Text(
+                            "The file is saved. Keep the code somewhere separate from it.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+                            Text("Done")
+                        }
+                    } else {
+                        Button(onClick = { saveFile() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Choose where to save the file")
+                        }
+                    }
                 }
 
                 chosen.isEmpty() -> Centred {

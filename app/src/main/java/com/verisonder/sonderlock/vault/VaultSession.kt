@@ -14,6 +14,8 @@ import androidx.compose.runtime.mutableStateOf
  */
 object VaultSession {
 
+    private const val EXTERNAL_WINDOW_MS = 2 * 60 * 1000L
+
     private val state = mutableStateOf<VaultStore.Opened?>(null)
 
     val opened: VaultStore.Opened? get() = state.value
@@ -21,11 +23,28 @@ object VaultSession {
     val isDecoy: Boolean get() = state.value?.isDecoy == true
 
     /**
-     * Set while an activity the app itself started is in front — the photo picker, the
-     * system share sheet. Without it, locking on background would fire the instant the
-     * picker opened and the vault would be shut by the time a photo came back.
+     * Set while an activity the app itself started is in front — the document picker, the
+     * delete confirmation, a settings page. Without it, locking on background fires the
+     * instant that activity opens, and the screen waiting for the result is gone by the
+     * time it arrives. That is what made sharing write the file and then never show the
+     * code.
+     *
+     * Cleared as soon as the result comes back, and expired after a couple of minutes.
+     * A flag left standing would mean the next real trip to the background did not lock,
+     * which is a worse failure than the one it exists to prevent.
      */
-    var expectingExternalActivity: Boolean = false
+    private var externalUntil: Long = 0
+
+    var expectingExternalActivity: Boolean
+        get() = System.currentTimeMillis() < externalUntil
+        set(value) {
+            externalUntil = if (value) System.currentTimeMillis() + EXTERNAL_WINDOW_MS else 0
+        }
+
+    /** Called when a launcher result arrives, whatever the result was. */
+    fun externalActivityFinished() {
+        externalUntil = 0
+    }
 
     /**
      * Bumped whenever the vault's contents change. Screens read it so a grid refreshes
@@ -62,10 +81,7 @@ object VaultSession {
     }
 
     fun lockUnlessLeavingBriefly() {
-        if (expectingExternalActivity) {
-            expectingExternalActivity = false
-            return
-        }
+        if (expectingExternalActivity) return
         lock()
     }
 }

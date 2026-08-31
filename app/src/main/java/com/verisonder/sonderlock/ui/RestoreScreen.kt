@@ -63,6 +63,7 @@ fun RestoreScreen(vault: Vault, onDone: () -> Unit) {
     val pick = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
+        VaultSession.externalActivityFinished()
         if (uri == null) {
             onDone()
             return@rememberLauncherForActivityResult
