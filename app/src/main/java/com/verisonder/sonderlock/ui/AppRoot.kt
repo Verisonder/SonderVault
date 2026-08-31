@@ -1,5 +1,6 @@
 package com.verisonder.sonderlock.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -72,6 +73,19 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
         }
 
         val vault = opened.vault
+
+        // Without this the system back button walks straight past the app's own
+        // navigation and closes it, which from inside a photo looks like the app
+        // crashing. Every screen below the grid goes back to where it was opened from.
+        BackHandler(enabled = where != Where.Grid) {
+            where = when (where) {
+                is Where.Duress, Where.Restoring -> Where.Settings
+                is Where.DecoyPhotos -> Where.Settings
+                is Where.Sharing -> if ((where as Where.Sharing).isBackup) Where.Settings else Where.Grid
+                else -> Where.Grid
+            }
+        }
+
         when (val here = where) {
             Where.Grid -> VaultScreen(
                 vault = vault,
@@ -91,6 +105,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
             is Where.Viewing -> ViewerScreen(
                 store = store,
                 vault = vault,
+                activity = activity,
                 // Read here rather than passed down, so the list the pager walks is the
                 // one on disk right now: putting an item back removes it mid-view.
                 items = remember(VaultSession.contentsChanged) { vault.items() },
@@ -125,6 +140,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
             is Where.Sharing -> ShareScreen(
                 store = store,
                 vault = vault,
+                activity = activity,
                 itemIds = here.itemIds,
                 isBackup = here.isBackup,
                 onDone = { where = if (here.isBackup) Where.Settings else Where.Grid },

@@ -17,14 +17,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.verisonder.sonderlock.security.BiometricKey
+import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultSession
 import com.verisonder.sonderlock.vault.VaultStore
@@ -49,9 +54,11 @@ fun SettingsScreen(
 ) {
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
     val used = remember(VaultSession.contentsChanged) { store.totalSizeOnDisk() }
-    val fingerprintOn = remember(VaultSession.foregroundCount) {
-        BiometricKey.isEnabled(activity.filesDir)
+    val fingerprintPossible = remember { BiometricKey.isAvailable(activity) }
+    var fingerprintOn by remember(VaultSession.foregroundCount) {
+        mutableStateOf(BiometricKey.isEnabled(activity.filesDir))
     }
+    var note by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -77,10 +84,32 @@ fun SettingsScreen(
                 detail = "Opens a different set of photos.",
                 onClick = onDuress,
             )
-            Row(
+            SwitchRow(
                 title = "Fingerprint unlock",
-                detail = if (fingerprintOn) "On" else "Off — set it up from the vault screen.",
-                onClick = null,
+                detail = when {
+                    !fingerprintPossible -> "No fingerprint is set up on this phone."
+                    note != null -> note!!
+                    fingerprintOn -> "Also confirms when files leave the vault."
+                    else -> "Your password always works either way."
+                },
+                checked = fingerprintOn,
+                enabled = fingerprintPossible,
+                onChange = { wanted ->
+                    note = null
+                    if (!wanted) {
+                        BiometricKey.disable(activity.filesDir)
+                        fingerprintOn = false
+                    } else {
+                        BiometricPrompts.enable(
+                            activity,
+                            activity.filesDir,
+                            vault.masterKeyCopy(),
+                        ) { ok, message ->
+                            fingerprintOn = ok
+                            if (!ok) note = message
+                        }
+                    }
+                },
             )
 
             HorizontalDivider()
@@ -141,5 +170,33 @@ private fun Row(title: String, detail: String, onClick: (() -> Unit)?) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    title: String,
+    detail: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (enabled) Modifier.clickable { onChange(!checked) } else Modifier)
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }

@@ -49,6 +49,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import com.verisonder.sonderlock.media.VaultDataSource
 import com.verisonder.sonderlock.media.VaultExport
+import androidx.fragment.app.FragmentActivity
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import com.verisonder.sonderlock.vault.VaultSession
@@ -77,6 +78,7 @@ private const val MAX_IMAGE_EDGE = 2560
 fun ViewerScreen(
     store: VaultStore,
     vault: Vault,
+    activity: FragmentActivity,
     items: List<VaultItem>,
     startIndex: Int,
     onShare: (List<String>) -> Unit,
@@ -185,6 +187,7 @@ fun ViewerScreen(
             ConfirmPassword(
                 store = store,
                 vault = vault,
+                activity = activity,
                 reason = "This writes the file back to your gallery, where anything on " +
                     "the phone can read it.",
                 confirmLabel = "Put back",

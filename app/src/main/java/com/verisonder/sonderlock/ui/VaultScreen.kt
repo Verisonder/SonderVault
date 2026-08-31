@@ -1,5 +1,6 @@
 package com.verisonder.sonderlock.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -96,6 +97,10 @@ fun VaultScreen(
     }
     var note by remember { mutableStateOf<String?>(null) }
     var confirmingDelete by remember { mutableStateOf(false) }
+
+    // Back drops the selection first. Leaving the vault while thirty photos are ticked
+    // is never what the gesture meant.
+    BackHandler(enabled = selecting) { selected.clear() }
 
     fun toggle(id: String) {
         if (id in selected) selected.remove(id) else selected.add(id)

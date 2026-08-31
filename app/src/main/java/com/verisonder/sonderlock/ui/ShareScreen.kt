@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.verisonder.sonderlock.bundle.Bundle
 import com.verisonder.sonderlock.bundle.BundleWriter
 import com.verisonder.sonderlock.crypto.RecoveryPhrase
+import androidx.fragment.app.FragmentActivity
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultSession
 import com.verisonder.sonderlock.vault.VaultStore
@@ -63,6 +64,7 @@ import java.util.Locale
 fun ShareScreen(
     store: VaultStore,
     vault: Vault,
+    activity: FragmentActivity,
     itemIds: List<String>,
     isBackup: Boolean,
     onDone: () -> Unit,
@@ -218,6 +220,7 @@ fun ShareScreen(
         ConfirmPassword(
             store = store,
             vault = vault,
+            activity = activity,
             reason = "This writes an encrypted copy out of the vault.",
             confirmLabel = "Continue",
             onConfirmed = { confirmingPassword = false; begin() },

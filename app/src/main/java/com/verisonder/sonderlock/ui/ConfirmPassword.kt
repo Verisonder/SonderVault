@@ -22,7 +22,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
+import com.verisonder.sonderlock.crypto.Crypto
+import com.verisonder.sonderlock.security.BiometricKey
+import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.Vault
+import androidx.fragment.app.FragmentActivity
+import com.verisonder.sonderlock.crypto.Crypto
+import com.verisonder.sonderlock.security.BiometricKey
+import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,6 +50,7 @@ import kotlinx.coroutines.withContext
 fun ConfirmPassword(
     store: VaultStore,
     vault: Vault,
+    activity: FragmentActivity,
     reason: String,
     confirmLabel: String,
     onConfirmed: () -> Unit,
@@ -51,6 +60,26 @@ fun ConfirmPassword(
     var checking by remember { mutableStateOf(false) }
     var wrong by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    val fingerprintReady = remember {
+        BiometricKey.isAvailable(activity) && BiometricKey.isEnabled(activity.filesDir)
+    }
+
+    fun tryFingerprint() {
+        wrong = false
+        BiometricPrompts.unlock(activity, activity.filesDir) { key, _ ->
+            // The fingerprint only ever unwraps the real vault's key, so this refuses
+            // inside the decoy — which is right. Someone made to open the decoy should
+            // not then be able to press a finger and take files out of it.
+            if (key != null && vault.matchesMasterKey(key)) {
+                Crypto.wipe(key)
+                onConfirmed()
+            } else {
+                if (key != null) Crypto.wipe(key)
+                wrong = true
+            }
+        }
+    }
 
     fun submit() {
         if (password.isEmpty() || checking) return
@@ -97,6 +126,12 @@ fun ConfirmPassword(
                     keyboardActions = KeyboardActions(onGo = { submit() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (fingerprintReady) {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = { tryFingerprint() }, enabled = !checking) {
+                        Text("Use fingerprint")
+                    }
+                }
             }
         },
         confirmButton = {
