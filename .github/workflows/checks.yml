@@ -55,17 +55,61 @@ jobs:
             app/build/reports/tests/
           retention-days: 7
 
-      - name: Summarise a failure
+      # CI logs are served from blob storage, which is unreachable from the environment
+      # this project is worked on in. So a failure writes itself somewhere readable
+      # instead. Deliberately not a GitHub issue: an auto-opened issue shows up on the
+      # owner's public profile timeline, and a failed build on a branch is a normal step
+      # in developing it, not something to announce.
+      - name: Record the failure
         if: failure()
         shell: bash
+        env:
+          ARTIFACTS_PAT: ${{ secrets.ARTIFACTS_PAT }}
         run: |
+          if [ -z "$ARTIFACTS_PAT" ]; then
+            echo "ARTIFACTS_PAT is not set; skipping. A missing secret must not fail the build."
+            exit 0
+          fi
           {
-            echo '## Build failed'
+            echo "repository : $GITHUB_REPOSITORY"
+            echo "branch     : $GITHUB_REF_NAME"
+            echo "commit     : $GITHUB_SHA"
+            echo "run        : $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "recorded   : $(date -u +%FT%TZ)"
             echo
-            echo 'Compiler and test output, last 150 lines:'
-            echo '```'
-            grep -E '^(e:|w: .*error|FAILURE|\* What went wrong|Caused by|[0-9]+ tests? completed)' build-output.txt | head -n 60 || true
-            echo '...'
-            tail -n 150 build-output.txt || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+            echo "--- errors ---"
+            grep -E '^(e:|FAILURE|\* What went wrong|Caused by|[0-9]+ tests? completed)' build-output.txt | head -n 80 || true
+            echo
+            echo "--- tail ---"
+            tail -n 200 build-output.txt || true
+          } > failure.txt
+          python3 - <<'PY'
+          import base64, json, os, urllib.error, urllib.request
+
+          url = "https://api.github.com/repos/Verisonder/vs-artifacts/contents/failures/latest.txt"
+          headers = {"Authorization": "Bearer " + os.environ["ARTIFACTS_PAT"],
+                     "Accept": "application/vnd.github+json"}
+
+          def call(method, body=None):
+              req = urllib.request.Request(url, method=method, headers=headers,
+                                           data=json.dumps(body).encode() if body else None)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return r.status, json.loads(r.read() or b"{}")
+              except urllib.error.HTTPError as e:
+                  return e.code, json.loads(e.read() or b"{}")
+
+          status, existing = call("GET")
+          body = {
+              "message": "Record a build failure",
+              "content": base64.b64encode(open("failure.txt", "rb").read()).decode(),
+              "committer": {"name": "Verisonder",
+                            "email": "verisonder@users.noreply.github.com"},
+          }
+          if status == 200:
+              body["sha"] = existing["sha"]
+          status, result = call("PUT", body)
+          print("recorded to vs-artifacts:", status)
+          if status not in (200, 201):
+              print(result)
+          PY
