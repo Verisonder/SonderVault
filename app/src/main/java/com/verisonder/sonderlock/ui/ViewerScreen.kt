@@ -492,7 +492,12 @@ private fun VideoPage(
                     .navigationBarsPadding()
                     // Clear of the action bar below, which is where share, put back and
                     // delete live.
-                    .padding(start = 8.dp, end = 16.dp, bottom = 64.dp),
+                    .padding(bottom = 64.dp)
+                    // The same scrim the actions sit on, so the two read as one bar. Over
+                    // a bright frame the white controls were invisible without it — the
+                    // three buttons had a backing and these did not.
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(start = 8.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = {
