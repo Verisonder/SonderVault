@@ -136,8 +136,7 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
             }
 
             !hasAccess -> Centred {
-                Text("SonderLock needs to see your photos to import them.",
-                    style = MaterialTheme.typography.bodyLarge)
+                Text("Needed to import your photos.", style = MaterialTheme.typography.bodyLarge)
                 Spacer(Modifier.height(16.dp))
                 Button(onClick = { askForAccess.launch(MediaAccess.readPermissions()) }) {
                     Text("Allow access")
@@ -211,8 +210,7 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Originals are removed from this phone. If cloud backup is on, the " +
-                        "copy there is not affected.",
+                    "Originals are deleted from this phone. Cloud backups are not.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

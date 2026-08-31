@@ -90,8 +90,7 @@ fun VaultScreen(
         if (fingerprintOffer) {
             Offer(
                 title = "Turn on fingerprint unlock?",
-                detail = "Your password still works. Adding a new fingerprint to this " +
-                    "phone turns it back off.",
+                detail = "Your password still works.",
                 action = "Turn on",
                 onAction = {
                     BiometricPrompts.enable(
@@ -108,8 +107,7 @@ fun VaultScreen(
         } else if (manageOffer) {
             Offer(
                 title = "Remove originals without asking?",
-                detail = "Android shows a confirmation every time SonderLock deletes a " +
-                    "photo. One switch in Settings turns that off for this app.",
+                detail = "Skips Android's confirmation on every import.",
                 action = "Open Settings",
                 onAction = {
                     MediaAccess.mediaManagementSettings(context)?.let {
