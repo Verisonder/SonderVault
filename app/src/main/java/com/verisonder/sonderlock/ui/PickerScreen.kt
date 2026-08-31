@@ -177,7 +177,7 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "Originals are deleted from this phone. Cloud backups are not.",
+                            "Originals are deleted from this phone.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
