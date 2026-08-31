@@ -116,6 +116,7 @@ dependencies {
 
     implementation(libs.bouncycastle)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
 
     testImplementation(libs.junit)
 }

@@ -59,6 +59,11 @@ import kotlinx.coroutines.withContext
 fun PickerScreen(vault: Vault, onDone: () -> Unit) {
     val context = LocalContext.current
     var hasAccess by remember { mutableStateOf(MediaAccess.hasReadAccess(context)) }
+    // Re-read on every return to the foreground: the media management toggle lives in
+    // Settings and nothing tells the app when it changes.
+    val needsManagement = remember(VaultSession.foregroundCount) {
+        MediaAccess.mediaManagementPossible() && !MediaAccess.canManageMedia(context)
+    }
     var media by remember { mutableStateOf<List<DeviceMediaItem>?>(null) }
     val selected = remember { mutableListOf<Long>().toMutableStateList() }
     var working by remember { mutableStateOf<String?>(null) }
@@ -81,10 +86,10 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
         onDone()
     }
 
-    LaunchedEffect(hasAccess) {
+    LaunchedEffect(hasAccess, needsManagement) {
         if (!hasAccess) {
             askForAccess.launch(MediaAccess.readPermissions())
-        } else if (media == null) {
+        } else if (!needsManagement && media == null) {
             media = withContext(Dispatchers.IO) { DeviceMedia.query(context) }
         }
     }
@@ -141,6 +146,25 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                 Button(onClick = { askForAccess.launch(MediaAccess.readPermissions()) }) {
                     Text("Allow access")
                 }
+            }
+
+            // Importing without this leaves the original in the gallery behind a
+            // confirmation the user can decline, which would make hiding a photo optional.
+            needsManagement -> Centred {
+                Text("Turn on media management.", style = MaterialTheme.typography.bodyLarge)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "SonderLock needs it to remove originals from your phone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = {
+                    MediaAccess.mediaManagementSettings(context)?.let {
+                        VaultSession.expectingExternalActivity = true
+                        context.startActivity(it)
+                    }
+                }) { Text("Open Settings") }
             }
 
             media == null -> Centred { CircularProgressIndicator(strokeWidth = 2.dp) }

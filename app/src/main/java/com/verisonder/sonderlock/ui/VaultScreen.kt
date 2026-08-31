@@ -29,10 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import com.verisonder.sonderlock.media.MediaAccess
 import com.verisonder.sonderlock.security.BiometricKey
 import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.Vault
@@ -53,16 +51,12 @@ fun VaultScreen(
     onAdd: () -> Unit,
     onLock: () -> Unit,
 ) {
-    val context = LocalContext.current
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
 
     var fingerprintOffer by remember {
         mutableStateOf(
             BiometricKey.isAvailable(activity) && !BiometricKey.isEnabled(activity.filesDir),
         )
-    }
-    var manageOffer by remember {
-        mutableStateOf(MediaAccess.mediaManagementPossible() && !MediaAccess.canManageMedia(context))
     }
     var note by remember { mutableStateOf<String?>(null) }
 
@@ -103,20 +97,6 @@ fun VaultScreen(
                     }
                 },
                 onDismiss = { fingerprintOffer = false },
-            )
-        } else if (manageOffer) {
-            Offer(
-                title = "Remove originals without asking?",
-                detail = "Skips Android's confirmation on every import.",
-                action = "Open Settings",
-                onAction = {
-                    MediaAccess.mediaManagementSettings(context)?.let {
-                        VaultSession.expectingExternalActivity = true
-                        context.startActivity(it)
-                        manageOffer = false
-                    }
-                },
-                onDismiss = { manageOffer = false },
             )
         }
 

@@ -38,6 +38,19 @@ object VaultSession {
         changes.value += 1
     }
 
+    /**
+     * Bumped every time the app comes back to the foreground. Screens key on it to
+     * re-read things that can only be changed outside the app — a permission toggled in
+     * Settings is invisible otherwise, and the screen would still be asking for something
+     * the user had already granted.
+     */
+    private val foregrounds = mutableStateOf(0)
+    val foregroundCount: Int get() = foregrounds.value
+
+    fun noteForeground() {
+        foregrounds.value += 1
+    }
+
     fun open(opened: VaultStore.Opened) {
         state.value?.vault?.close()
         state.value = opened

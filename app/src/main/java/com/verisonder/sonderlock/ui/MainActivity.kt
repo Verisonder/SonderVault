@@ -18,6 +18,11 @@ class MainActivity : SecureActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        VaultSession.noteForeground()
+    }
+
     /**
      * Locking here rather than on a timer. The vault is open exactly as long as it is on
      * screen, so a phone taken out of someone's hand is a phone with a locked vault.
