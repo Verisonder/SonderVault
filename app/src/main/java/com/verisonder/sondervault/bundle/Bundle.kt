@@ -23,7 +23,7 @@ class BundleEntry(
  * The shared and backed-up file format. See docs/FORMAT.md section 4.
  *
  * ```
- *  0   8  magic "SLBUNDL1"
+ *  0   8  magic "SVBUNDL1"
  *  8   1  version
  *  9   4  Argon2 memory, KiB
  * 13   4  Argon2 iterations
@@ -42,7 +42,7 @@ class BundleEntry(
 object Bundle {
 
     val MAGIC = byteArrayOf(
-        'S'.code.toByte(), 'L'.code.toByte(), 'B'.code.toByte(), 'U'.code.toByte(),
+        'S'.code.toByte(), 'V'.code.toByte(), 'B'.code.toByte(), 'U'.code.toByte(),
         'N'.code.toByte(), 'D'.code.toByte(), 'L'.code.toByte(), '1'.code.toByte(),
     )
     const val VERSION = 1
@@ -53,7 +53,7 @@ object Bundle {
     /** Split above this. Most SD cards are FAT32, which cannot hold a file over 4 GB. */
     const val MAX_PART_BYTES = 3_500_000_000L
 
-    const val MANIFEST_MAGIC = "SLBM1"
+    const val MANIFEST_MAGIC = "SVBM1"
 
     fun header(
         salt: ByteArray,

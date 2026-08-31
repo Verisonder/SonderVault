@@ -225,10 +225,8 @@ class Vault internal constructor(
     }
 
     companion object {
-        // Kept under the old name on purpose — see VaultFile. Changing it would
-        // derive a different index key and orphan every existing vault.
-        const val INFO_INDEX = "sonderlock:index:v1"
-        const val INFO_THUMB = "sonderlock:thumb:v1"
+        const val INFO_INDEX = "sondervault:index:v1"
+        const val INFO_THUMB = "sondervault:thumb:v1"
 
         /** Read a container straight from memory, for bundles and tests. */
         fun readerFor(bytes: ByteArray, key: ByteArray) = VaultFileReader(ByteArraySource(bytes), key)

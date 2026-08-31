@@ -84,6 +84,6 @@ class VaultDataSource(
          * The player needs a uri and never dereferences it, because the factory already
          * knows which file to open. It exists to give the media item an identity.
          */
-        fun uriFor(item: VaultItem): Uri = Uri.parse("sonderlock://item/${item.id}")
+        fun uriFor(item: VaultItem): Uri = Uri.parse("sondervault://item/${item.id}")
     }
 }

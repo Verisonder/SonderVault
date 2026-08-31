@@ -15,7 +15,7 @@ import java.security.SecureRandom
  */
 object KeySlots {
 
-    private val MAGIC = byteArrayOf('S'.code.toByte(), 'L'.code.toByte(), 'K'.code.toByte(), '1'.code.toByte())
+    private val MAGIC = byteArrayOf('S'.code.toByte(), 'V'.code.toByte(), 'K'.code.toByte(), '1'.code.toByte())
     const val VERSION = 1
 
     const val SLOT_COUNT = 4

@@ -19,7 +19,7 @@ import java.security.MessageDigest
  * implementations agree byte for byte. Where they disagree, one is wrong and this says
  * which value was expected.
  *
- * Regenerate with:  cd tools && python3 gen_vectors.py > vectors.json && python3 emit_test.py
+ * Regenerate with:  cd tools && python3 gen_vectors.py > ../app/src/test/resources/vectors.json
  */
 class CryptoVectorTest {
 
@@ -38,8 +38,8 @@ class CryptoVectorTest {
 
     @Test
     fun `hkdf splits the file key as the reference does`() {
-        assertEquals("d65bb7a58ea9357d6e1200169ba75dcd7254651d67163fea91aa8bea0e8d46ff", VaultFile.encryptionKey(FILE_KEY).toHex())
-        assertEquals("8781177d15858f73fd5a95c15a71519a9cd96b9eb223d26561231fce1e1e3207", VaultFile.macKey(FILE_KEY).toHex())
+        assertEquals("77ccf00be602d75ac00f0f153e248a1553363eec3df6431a755126b9d32d4c6d", VaultFile.encryptionKey(FILE_KEY).toHex())
+        assertEquals("6360ea63b267dd4d14ef7ff3cddb7b24bc67da5190e24f093ed4ea0dce8917ca", VaultFile.macKey(FILE_KEY).toHex())
     }
 
     // --------------------------------------------------------------- vault files
@@ -47,40 +47,40 @@ class CryptoVectorTest {
     @Test
     fun `container for empty matches the reference`() {
         val plain = pattern(0)
-        val header = hex("534c4631010c97ec6099890f9cfd00000000000000004ca9b62ddd546142e0d80e597464153d0e4be013060649960793fb48be7a7813")
+        val header = hex("53564631010cb84770c44de81ade0000000000000000afa309aed586342588050a21e21f514d4e0d2de886a51b638164c25ee031a31d")
         val blob = encryptWithHeaderNonce(FILE_KEY, plain, header)
         assertEquals(54, blob.size)
-        assertEquals("8edb4effa0c3723ee75628a93ed145eb454b60d269fd59feeb7f607b455c64b8", sha256(blob))
+        assertEquals("c18b4ebde7b7c3b1af0949279f7590d48b448aa877cff8d8bdfac6f0e55eea84", sha256(blob))
         assertArrayEquals(plain, readAll(FILE_KEY, blob))
     }
 
     @Test
     fun `container for short matches the reference`() {
         val plain = pattern(100)
-        val header = hex("534c4631010c97ec6099890f9cfd00000000000000648cf8b993b2b544f192503d6ca56389c58f1f7904473952e00dd9ace6e09738bf")
+        val header = hex("53564631010cb84770c44de81ade00000000000000646ef4964cb96a7d237b00429326d4ab4e78ef3c7ee1c77c58030be5da25489fdb")
         val blob = encryptWithHeaderNonce(FILE_KEY, plain, header)
         assertEquals(186, blob.size)
-        assertEquals("f2ab770bd05c4a6b333cdd0693bc523f83cc519f9247fa57691856f8cba0142c", sha256(blob))
+        assertEquals("40b1beb771c111d84848d444de112751a284984b5968df2c7490d9269ad39d3c", sha256(blob))
         assertArrayEquals(plain, readAll(FILE_KEY, blob))
     }
 
     @Test
     fun `container for exact_block matches the reference`() {
         val plain = pattern(4096)
-        val header = hex("534c4631010c97ec6099890f9cfd0000000000001000b5268c99167de3c089c764db8f3581e1c14341638e0cc58c6a82b15e92251d5e")
+        val header = hex("53564631010cb84770c44de81ade0000000000001000c8f4267d69f6e41555544f22862bcb4afd40e3e231bba0702089cfc25f288f8e")
         val blob = encryptWithHeaderNonce(FILE_KEY, plain, header)
         assertEquals(4182, blob.size)
-        assertEquals("4bb25db9ffd2f8301969450dbcb2cc7ad9da61374b64a7663d9817ac81edbf4a", sha256(blob))
+        assertEquals("a4a9f9c27b5be07540690796456e7006e323ebda69ca187d428c2a0b8ae3c423", sha256(blob))
         assertArrayEquals(plain, readAll(FILE_KEY, blob))
     }
 
     @Test
     fun `container for multi_block matches the reference`() {
         val plain = pattern(8525)
-        val header = hex("534c4631010c97ec6099890f9cfd000000000000214d600d2068d677ca3e5abf76e18b545fbb44cb05b746903a1674b2d289eec1b637")
+        val header = hex("53564631010cb84770c44de81ade000000000000214dfa46319390eeb042e3e678c41381bbd5d70727a8c6637365072be61fc6ad5b1b")
         val blob = encryptWithHeaderNonce(FILE_KEY, plain, header)
         assertEquals(8675, blob.size)
-        assertEquals("8f24b59a5198afaf52051971e4845551bad6d2d81a000788248685c3d0d677a5", sha256(blob))
+        assertEquals("4c1837fe257cfd0cf679e9a517935fe6da0d50e6b8e97d7fd4a9be62c09cb360", sha256(blob))
         assertArrayEquals(plain, readAll(FILE_KEY, blob))
     }
 
@@ -95,11 +95,11 @@ class CryptoVectorTest {
                     expected,
                     sha256(reader.read(offset.toLong(), length)),
                 )
-            check(0, 16, "cd7d620a0588e54dd46e114a6f4ae5212c82e48abe5a13703649a745861a0c60")
-            check(4095, 2, "b7d7de245bc54e7b0de8959197c09cfe6ee9827950f2cb3553894c5f4ee2ff5d")
-            check(4096, 100, "5fb5d4b7ace49f5eac37422b8e1db12bab83cdbc2b7123abb61457e19c050d4c")
-            check(8192, 333, "37c3b64cb69667e745de6e3215118caeeb6d059e208a27e02389c475aad47b55")
-            check(5000, 4000, "c2acfe13f5ea7f1537b3f73566786be35b3a51967ee617ef7c406489a49ae623")
+        check(0, 16, "cd7d620a0588e54dd46e114a6f4ae5212c82e48abe5a13703649a745861a0c60")
+        check(4095, 2, "b7d7de245bc54e7b0de8959197c09cfe6ee9827950f2cb3553894c5f4ee2ff5d")
+        check(4096, 100, "5fb5d4b7ace49f5eac37422b8e1db12bab83cdbc2b7123abb61457e19c050d4c")
+        check(8192, 333, "37c3b64cb69667e745de6e3215118caeeb6d059e208a27e02389c475aad47b55")
+        check(5000, 4000, "c2acfe13f5ea7f1537b3f73566786be35b3a51967ee617ef7c406489a49ae623")
         }
     }
 
@@ -160,7 +160,7 @@ class CryptoVectorTest {
 
     @Test
     fun `the reference slot file opens exactly as the reference says`() {
-        val blob = hex("534c4b3101000100000000000302dd1610d138ae7b4008c46ff516da0ad8590dd895886524f2f1b9527d414db0ebf9243c693ae7217fe90e397675d49f710d0936fda1ce4cb7194681f55fd9543f77d5d68967988e1ebf130a33d8310a3ca9faf2cb47ba30d99677dd8573dee5dabb2294329c52ff59239ac90ffcbf02f6b25bc4d2b1bd4ced0cf513a001b828a6f8cee456fd9ff5aa1f43259bef9057121220f6b0ea4054a87207db71c614671bd0928a321e2ccccb0659fd2c9ab16d3ffdfa6d6f9ffbecff12eaf38e8b5fd0f981f78646bfd22e949cf44b2697d8a22e8892a3aa4482373dc927297e57abe0c12f719bcd293e811952a2a45fc79de3364a9bbbcfccf51ea3b765b7b85d8ff84df238385f5a448503b2a9e945246a7a9fd6d2b6e6a9a935bcc8100b02114f2d5d")
+        val blob = hex("53564b3101000100000000000302fc65404e756613289d647538ad4caf997a5ecc409c507afb50ead3c717cd01ebbde6c0d045060601efec0f7d11e19ea357fb3f74fa703e1607c02fbce3371a4054b8d5da0d1418ffab3e361f7d36b30c3aa9f860d69406a95ae2b1537162a3c60192c3279fda6d2226355d56b91512d84c3f75d39436fed105621d0a43d3cb18d53d522a8b7daffc51d3078b1d46adeac39417fbb602bf00f7ff313cd9a3b0f36fde80e78583d7a111551f5160fa5077b91c332b94998512dc0addd5de1df3bd93e2f80bb80c7401a678abb7b34133f197678e594d37bb4b57cff16705bca4f1cf5baf5ab970f90680515831dbfeda091fa1c659e5a38dd8b396bdb2c510bce72a81db0a740d28feff8a3bd4c0cf6850831a76d897aa2c4507fe1f544c723d34")
         assertEquals(302, blob.size)
         assertEquals(KeySlots.FILE_SIZE, blob.size)
 
@@ -194,7 +194,7 @@ class CryptoVectorTest {
 
     @Test
     fun `editing the argon parameters is caught`() {
-        val blob = hex("534c4b3101000100000000000302dd1610d138ae7b4008c46ff516da0ad8590dd895886524f2f1b9527d414db0ebf9243c693ae7217fe90e397675d49f710d0936fda1ce4cb7194681f55fd9543f77d5d68967988e1ebf130a33d8310a3ca9faf2cb47ba30d99677dd8573dee5dabb2294329c52ff59239ac90ffcbf02f6b25bc4d2b1bd4ced0cf513a001b828a6f8cee456fd9ff5aa1f43259bef9057121220f6b0ea4054a87207db71c614671bd0928a321e2ccccb0659fd2c9ab16d3ffdfa6d6f9ffbecff12eaf38e8b5fd0f981f78646bfd22e949cf44b2697d8a22e8892a3aa4482373dc927297e57abe0c12f719bcd293e811952a2a45fc79de3364a9bbbcfccf51ea3b765b7b85d8ff84df238385f5a448503b2a9e945246a7a9fd6d2b6e6a9a935bcc8100b02114f2d5d")
+        val blob = hex("53564b3101000100000000000302fc65404e756613289d647538ad4caf997a5ecc409c507afb50ead3c717cd01ebbde6c0d045060601efec0f7d11e19ea357fb3f74fa703e1607c02fbce3371a4054b8d5da0d1418ffab3e361f7d36b30c3aa9f860d69406a95ae2b1537162a3c60192c3279fda6d2226355d56b91512d84c3f75d39436fed105621d0a43d3cb18d53d522a8b7daffc51d3078b1d46adeac39417fbb602bf00f7ff313cd9a3b0f36fde80e78583d7a111551f5160fa5077b91c332b94998512dc0addd5de1df3bd93e2f80bb80c7401a678abb7b34133f197678e594d37bb4b57cff16705bca4f1cf5baf5ab970f90680515831dbfeda091fa1c659e5a38dd8b396bdb2c510bce72a81db0a740d28feff8a3bd4c0cf6850831a76d897aa2c4507fe1f544c723d34")
         blob[5] = (blob[5].toInt() xor 0x01).toByte()
         assertNull(KeySlots.unlock(blob, "real-password".toByteArray()))
     }
@@ -219,12 +219,9 @@ class CryptoVectorTest {
     // ------------------------------------------------------------------ phrases
 
     /**
-     * The shipped file, not a copy. A second copy under test resources could drift from
-     * the one the app actually loads and the test would still pass.
-     *
-     * Both candidates are tried because the working directory of a unit test is the
-     * module directory under Gradle and the repository root under some IDE run
-     * configurations, and a test that fails on where it was started from is noise.
+     * The shipped file, not a copy. Both candidates are tried because the working
+     * directory of a unit test is the module directory under Gradle and the repository
+     * root under some IDE run configurations.
      */
     private val wordlistFile: File = listOf(
         File("src/main/res/raw/bip39_en.txt"),

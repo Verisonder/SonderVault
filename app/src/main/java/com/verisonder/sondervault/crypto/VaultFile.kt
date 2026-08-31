@@ -14,19 +14,15 @@ import java.io.RandomAccessFile
  */
 object VaultFile {
 
-    val MAGIC = byteArrayOf('S'.code.toByte(), 'L'.code.toByte(), 'F'.code.toByte(), '1'.code.toByte())
+    val MAGIC = byteArrayOf('S'.code.toByte(), 'V'.code.toByte(), 'F'.code.toByte(), '1'.code.toByte())
     const val VERSION = 1
 
     const val PREFIX_SIZE = 22                              // magic 4, version 1, log2 1, nonce 8, size 8
     const val HEADER_SIZE = PREFIX_SIZE + Crypto.MAC_BYTES  // 54
     const val DEFAULT_BLOCK_LOG2 = 20                       // 1 MiB
 
-    // These two, and the four like them elsewhere, keep the old name deliberately.
-    // They are domain separation strings baked into every container and every bundle
-    // already written; renaming them would derive different keys and make existing files
-    // unopenable. The name in them is an identifier, not branding.
-    const val INFO_ENC = "sonderlock:enc:v1"
-    const val INFO_MAC = "sonderlock:mac:v1"
+    const val INFO_ENC = "sondervault:enc:v1"
+    const val INFO_MAC = "sondervault:mac:v1"
 
     fun encryptionKey(fileKey: ByteArray): ByteArray = Crypto.hkdf(fileKey, INFO_ENC)
     fun macKey(fileKey: ByteArray): ByteArray = Crypto.hkdf(fileKey, INFO_MAC)

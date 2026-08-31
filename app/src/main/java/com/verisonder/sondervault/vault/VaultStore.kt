@@ -247,8 +247,6 @@ class VaultStore(
         baseDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
     companion object {
-        // Kept under the old name on purpose — see VaultFile. Changing it would put
-        // every vault in a different directory and lose the one already there.
-        const val INFO_DIRECTORY = "sonderlock:dir:v1"
+        const val INFO_DIRECTORY = "sondervault:dir:v1"
     }
 }

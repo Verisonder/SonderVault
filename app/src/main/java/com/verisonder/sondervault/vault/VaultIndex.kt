@@ -52,7 +52,7 @@ data class VaultItem(
  */
 object VaultIndex {
 
-    const val MAGIC = "SLIX1"
+    const val MAGIC = "SVIX1"
 
     fun serialise(items: List<VaultItem>): ByteArray = buildString {
         appendLine(MAGIC)

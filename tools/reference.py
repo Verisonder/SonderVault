@@ -1,5 +1,5 @@
 """
-SonderLock format reference implementation.
+SonderVault format reference implementation.
 
 Not shipped. Exists to prove the byte layouts and the seek arithmetic before any
 Kotlin is written, and to emit test vectors the Kotlin side must reproduce.
@@ -66,7 +66,7 @@ def ctr_at(key: bytes, nonce8: bytes, counter: int, data: bytes) -> bytes:
 # slots.bin — fixed size, always four slots, unused slots filled with random
 # bytes so their absence is indistinguishable from their presence.
 #
-#   magic     "SLK1"      4
+#   magic     "SVK1"      4
 #   version   u8          1
 #   memKiB    u32 be      4
 #   iters     u32 be      4
@@ -92,7 +92,7 @@ FLAG_WIPE = 0x01
 
 
 def slots_header(salt: bytes) -> bytes:
-    return (b"SLK1" + bytes([1])
+    return (b"SVK1" + bytes([1])
             + struct.pack(">I", ARGON_MEM_KIB)
             + struct.pack(">I", ARGON_ITERS)
             + bytes([ARGON_PAR]) + salt)
@@ -121,7 +121,7 @@ def build_slots(entries):
 
 def open_slots(blob: bytes, password: bytes):
     header = blob[:HEADER_SIZE]
-    assert header[:4] == b"SLK1"
+    assert header[:4] == b"SVK1"
     salt = header[-16:]
     kek = argon2id(password, salt)  # exactly one Argon2 run per attempt
     for i in range(SLOT_COUNT):
@@ -142,7 +142,7 @@ def open_slots(blob: bytes, password: bytes):
 # block for integrity, because one MAC over a 2 GB file means reading all of it
 # before showing the first frame.
 #
-#   magic       "SLF1"    4
+#   magic       "SVF1"    4
 #   version     u8        1
 #   blkLog2     u8        1     20 = 1 MiB
 #   nonce                 8
@@ -155,7 +155,7 @@ MAC_SIZE = 32
 
 
 def file_keys(file_key: bytes):
-    return hkdf(file_key, b"sonderlock:enc:v1"), hkdf(file_key, b"sonderlock:mac:v1")
+    return hkdf(file_key, b"sondervault:enc:v1"), hkdf(file_key, b"sondervault:mac:v1")
 
 
 def block_mac(mac_key: bytes, nonce: bytes, index: int, ct: bytes) -> bytes:
@@ -171,7 +171,7 @@ def encrypt_file(file_key: bytes, plain: bytes, blk_log2: int = 20) -> bytes:
     enc_key, mac_key = file_keys(file_key)
     blk = 1 << blk_log2
     nonce = os.urandom(8)
-    head = b"SLF1" + bytes([1, blk_log2]) + nonce + struct.pack(">Q", len(plain))
+    head = b"SVF1" + bytes([1, blk_log2]) + nonce + struct.pack(">Q", len(plain))
     out = [head, hmac.new(mac_key, head, hashlib.sha256).digest()]
     index, off = 0, 0
     while off < len(plain):
@@ -190,7 +190,7 @@ def read_file(file_key: bytes, blob: bytes, offset: int = 0, length: int | None 
     """Decrypt from an arbitrary plaintext offset, touching only the blocks needed."""
     enc_key, mac_key = file_keys(file_key)
     head = blob[:22]
-    if head[:4] != b"SLF1":
+    if head[:4] != b"SVF1":
         raise ValueError("not a vault file")
     if not hmac.compare_digest(blob[22:22 + MAC_SIZE],
                                hmac.new(mac_key, head, hashlib.sha256).digest()):
@@ -223,7 +223,17 @@ def read_file(file_key: bytes, blob: bytes, offset: int = 0, length: int | None 
 
 # ------------------------------------------------------------ six-word codes
 
-with open("bip39_en.txt") as fh:
+# The shipped wordlist, wherever this is run from. Keeping a second copy beside the
+# script is how the two quietly drift apart.
+_WORDLIST = next(
+    p for p in (
+        "bip39_en.txt",
+        "../app/src/main/res/raw/bip39_en.txt",
+        "app/src/main/res/raw/bip39_en.txt",
+    ) if os.path.exists(p)
+)
+
+with open(_WORDLIST) as fh:
     WORDS = [w.strip() for w in fh if w.strip()]
 assert len(WORDS) == 2048
 

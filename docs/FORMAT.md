@@ -37,7 +37,7 @@ enough that someone watching the screen would notice.
 
 ```
 offset  size  field
-     0     4  magic "SLK1"
+     0     4  magic "SVK1"
      4     1  version = 1
      5     4  Argon2 memory, KiB, big endian     (65536)
      9     4  Argon2 iterations, big endian      (3)
@@ -91,7 +91,7 @@ AES-256-CTR in blocks, each block authenticated with HMAC-SHA256. Encrypt-then-M
 
 ```
 offset  size  field
-     0     4  magic "SLF1"
+     0     4  magic "SVF1"
      4     1  version = 1
      5     1  block size, log2      (20 = 1 MiB)
      6     8  nonce
@@ -108,15 +108,13 @@ writes no blocks at all and is 54 bytes.
 Keys are split from the file key:
 
 ```
-encKey = HKDF-SHA256-Expand(fileKey, "sonderlock:enc:v1", 32)
-macKey = HKDF-SHA256-Expand(fileKey, "sonderlock:mac:v1", 32)
+encKey = HKDF-SHA256-Expand(fileKey, "sondervault:enc:v1", 32)
+macKey = HKDF-SHA256-Expand(fileKey, "sondervault:mac:v1", 32)
 ```
 
-**These strings keep the app's former name and always will.** They are domain separation
-labels baked into every container and every bundle already written; changing them would
-derive different keys and make existing files unopenable. The same goes for
-`sonderlock:index:v1`, `sonderlock:thumb:v1`, `sonderlock:dir:v1`, and the `SLBUNDL1`
-bundle magic. What is inside a format is an identifier, not branding.
+These strings are domain separation labels, not decoration. Changing one derives a
+different key, so a file written under an old label cannot be read under a new one. They
+were renamed once, before the app was released, and should not be renamed again.
 
 Extract is skipped because the input is already a uniform 256-bit key.
 
@@ -163,7 +161,7 @@ that bundle and nothing else.
 
 ```
 offset  size  field
-     0     8  magic "SLBUNDL1"
+     0     8  magic "SVBUNDL1"
      8     1  version = 1
      9     4  Argon2 memory, KiB, big endian
     13     4  Argon2 iterations, big endian
