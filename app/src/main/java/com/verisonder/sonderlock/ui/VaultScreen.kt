@@ -2,6 +2,7 @@ package com.verisonder.sonderlock.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,7 @@ fun VaultScreen(
     vault: Vault,
     activity: FragmentActivity,
     onAdd: () -> Unit,
+    onOpen: (Int) -> Unit,
     onLock: () -> Unit,
 ) {
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
@@ -123,19 +125,22 @@ fun VaultScreen(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                items(items, key = { it.id }) { item -> Tile(vault, item) }
+                itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                    Tile(vault, item) { onOpen(index) }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun Tile(vault: Vault, item: VaultItem) {
+private fun Tile(vault: Vault, item: VaultItem, onOpen: () -> Unit) {
     val thumbnail by rememberVaultThumbnail(vault, item)
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onOpen),
     ) {
         thumbnail?.let {
             Image(

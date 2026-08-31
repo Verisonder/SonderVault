@@ -30,8 +30,8 @@ import com.verisonder.sonderlock.vault.VaultStore
 /**
  * Which screen is showing follows from state rather than from a navigation graph.
  *
- * There are three, they are mutually exclusive, and the transitions are one-way — a
- * navigation library here would be more machinery than the problem has.
+ * They are mutually exclusive and the transitions are shallow, so a navigation library
+ * here would be more machinery than the problem has.
  */
 @Composable
 fun AppRoot(store: VaultStore, activity: FragmentActivity) {
@@ -39,11 +39,15 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
     var crash by remember { mutableStateOf(CrashLog.read(context)) }
     var configured by remember { mutableStateOf(store.isConfigured) }
     var picking by remember { mutableStateOf(false) }
+    var viewing by remember { mutableStateOf<Int?>(null) }
     val opened = VaultSession.opened
 
     // Locking while the picker is up would strand it against a closed vault, so the flag
     // is dropped the moment the vault is not open.
-    if (opened == null && picking) picking = false
+    if (opened == null) {
+        if (picking) picking = false
+        if (viewing != null) viewing = null
+    }
 
     Surface(modifier = Modifier.fillMaxSize()) {
         val report = crash
@@ -58,10 +62,19 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 VaultSession.noteContentsChanged()
                 picking = false
             }
+            viewing != null -> ViewerScreen(
+                vault = opened.vault,
+                // Read here rather than passed down, so the list the pager walks is the
+                // one on disk right now: putting an item back removes it mid-view.
+                items = remember(VaultSession.contentsChanged) { opened.vault.items() },
+                startIndex = viewing ?: 0,
+                onClose = { viewing = null },
+            )
             else -> VaultScreen(
                 vault = opened.vault,
                 activity = activity,
                 onAdd = { picking = true },
+                onOpen = { viewing = it },
                 onLock = { VaultSession.lock() },
             )
         }
