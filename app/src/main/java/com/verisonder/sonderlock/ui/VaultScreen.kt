@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +63,7 @@ fun VaultScreen(
     activity: FragmentActivity,
     onAdd: () -> Unit,
     onOpen: (Int) -> Unit,
+    onSettings: () -> Unit,
     onLock: () -> Unit,
 ) {
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
@@ -77,6 +79,9 @@ fun VaultScreen(
             TopAppBar(
                 title = { Text("SonderLock") },
                 actions = {
+                    IconButton(onClick = onSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    }
                     IconButton(onClick = onLock) {
                         Icon(Icons.Filled.Lock, contentDescription = "Lock")
                     }
@@ -101,7 +106,7 @@ fun VaultScreen(
                         BiometricPrompts.enable(
                             activity,
                             activity.filesDir,
-                            vault.masterKeyForBiometrics(),
+                            vault.masterKeyCopy(),
                         ) { ok, message ->
                             fingerprintOffer = !ok
                             note = if (ok) "Fingerprint unlock is on." else message

@@ -120,6 +120,7 @@ dependencies {
     implementation(libs.androidx.fragment)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.zxing.core)
 
     testImplementation(libs.junit)
 }

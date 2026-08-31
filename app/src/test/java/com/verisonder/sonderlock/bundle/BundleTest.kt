@@ -49,8 +49,14 @@ class BundleTest {
 
     private fun target(name: String = "out.sonderlock") = File(base, name)
 
-    private fun write(items: List<VaultItem>, to: File = target()) =
-        BundleWriter.write(vault, items, phrase, to, MEM, ITERS, PAR)
+    private class Result(val file: File, val entries: Int)
+
+    private fun write(items: List<VaultItem>, to: File = target()): Result {
+        val written = to.outputStream().use {
+            BundleWriter.write(vault, items, phrase, it, MEM, ITERS, PAR)
+        }
+        return Result(to, written.entries)
+    }
 
     private fun open(file: File, words: List<String> = phrase) =
         BundleReader.open(file, words)

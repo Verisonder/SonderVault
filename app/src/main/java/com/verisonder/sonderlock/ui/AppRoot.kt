@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,8 +22,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
-import com.verisonder.sonderlock.CrashLog
 import androidx.fragment.app.FragmentActivity
+import com.verisonder.sonderlock.CrashLog
 import com.verisonder.sonderlock.vault.VaultSession
 import com.verisonder.sonderlock.vault.VaultStore
 
@@ -33,21 +33,28 @@ import com.verisonder.sonderlock.vault.VaultStore
  * They are mutually exclusive and the transitions are shallow, so a navigation library
  * here would be more machinery than the problem has.
  */
+private sealed interface Where {
+    data object Grid : Where
+    data object Picking : Where
+    data class Viewing(val index: Int) : Where
+    data object Settings : Where
+    data object Duress : Where
+    data class DecoyPhotos(val decoy: com.verisonder.sonderlock.vault.Vault) : Where
+    data class Sharing(val everything: Boolean) : Where
+    data object Restoring : Where
+}
+
 @Composable
 fun AppRoot(store: VaultStore, activity: FragmentActivity) {
     val context = LocalContext.current
     var crash by remember { mutableStateOf(CrashLog.read(context)) }
     var configured by remember { mutableStateOf(store.isConfigured) }
-    var picking by remember { mutableStateOf(false) }
-    var viewing by remember { mutableStateOf<Int?>(null) }
+    var where by remember { mutableStateOf<Where>(Where.Grid) }
     val opened = VaultSession.opened
 
-    // Locking while the picker is up would strand it against a closed vault, so the flag
-    // is dropped the moment the vault is not open.
-    if (opened == null) {
-        if (picking) picking = false
-        if (viewing != null) viewing = null
-    }
+    // Everything below the vault screen depends on the vault being open, so locking drops
+    // straight back rather than leaving a screen stranded against a closed vault.
+    if (opened == null && where != Where.Grid) where = Where.Grid
 
     Surface(modifier = Modifier.fillMaxSize()) {
         val report = crash
@@ -55,29 +62,71 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
             CrashReport(report, onDismiss = { CrashLog.clear(context); crash = null })
             return@Surface
         }
-        when {
-            !configured -> SetupScreen(store) { configured = true }
-            opened == null -> UnlockScreen(store, activity) { }
-            picking -> PickerScreen(opened.vault) {
-                VaultSession.noteContentsChanged()
-                picking = false
-            }
-            viewing != null -> ViewerScreen(
-                store = store,
-                vault = opened.vault,
-                // Read here rather than passed down, so the list the pager walks is the
-                // one on disk right now: putting an item back removes it mid-view.
-                items = remember(VaultSession.contentsChanged) { opened.vault.items() },
-                startIndex = viewing ?: 0,
-                onClose = { viewing = null },
-            )
-            else -> VaultScreen(
-                vault = opened.vault,
+        if (!configured) {
+            SetupScreen(store) { configured = true }
+            return@Surface
+        }
+        if (opened == null) {
+            UnlockScreen(store, activity) { }
+            return@Surface
+        }
+
+        val vault = opened.vault
+        when (val here = where) {
+            Where.Grid -> VaultScreen(
+                vault = vault,
                 activity = activity,
-                onAdd = { picking = true },
-                onOpen = { viewing = it },
+                onAdd = { where = Where.Picking },
+                onOpen = { where = Where.Viewing(it) },
+                onSettings = { where = Where.Settings },
                 onLock = { VaultSession.lock() },
             )
+
+            Where.Picking -> PickerScreen(vault) {
+                VaultSession.noteContentsChanged()
+                where = Where.Grid
+            }
+
+            is Where.Viewing -> ViewerScreen(
+                store = store,
+                vault = vault,
+                // Read here rather than passed down, so the list the pager walks is the
+                // one on disk right now: putting an item back removes it mid-view.
+                items = remember(VaultSession.contentsChanged) { vault.items() },
+                startIndex = here.index,
+                onClose = { where = Where.Grid },
+            )
+
+            Where.Settings -> SettingsScreen(
+                store = store,
+                vault = vault,
+                activity = activity,
+                onDuress = { where = Where.Duress },
+                onShare = { where = Where.Sharing(everything = false) },
+                onBackUp = { where = Where.Sharing(everything = true) },
+                onRestore = { where = Where.Restoring },
+                onClose = { where = Where.Grid },
+            )
+
+            Where.Duress -> DuressScreen(
+                store = store,
+                vault = vault,
+                onChooseDecoyPhotos = { where = Where.DecoyPhotos(it) },
+                onClose = { where = Where.Settings },
+            )
+
+            // The picker again, pointed at the second vault. A decoy is an ordinary vault
+            // and filling one is an ordinary import.
+            is Where.DecoyPhotos -> PickerScreen(here.decoy) { where = Where.Settings }
+
+            is Where.Sharing -> ShareScreen(
+                store = store,
+                vault = vault,
+                everything = here.everything,
+                onDone = { where = if (here.everything) Where.Settings else Where.Grid },
+            )
+
+            Where.Restoring -> RestoreScreen(vault) { where = Where.Settings }
         }
     }
 }
@@ -95,14 +144,14 @@ private fun CrashReport(text: String, onDismiss: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
     ) {
-        Text("SonderLock closed unexpectedly", style = MaterialTheme.typography.bodyLarge)
+        Text("SonderLock closed unexpectedly", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(12.dp))
         TextButton(onClick = { clipboard.setText(AnnotatedString(text)) }) { Text("Copy report") }
         TextButton(onClick = onDismiss) { Text("Dismiss") }
         Spacer(Modifier.height(12.dp))
         Text(
             text,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth(),
         )

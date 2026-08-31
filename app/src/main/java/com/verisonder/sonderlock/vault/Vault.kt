@@ -168,14 +168,14 @@ class Vault internal constructor(
     }
 
     /**
-     * The master key, for wrapping under the biometric key and nothing else.
+     * The master key, for re-wrapping it and nothing else — under the biometric key, or
+     * under a new set of password slots.
      *
      * It is here reluctantly. Every other operation goes through this class precisely so
-     * the key stays put, and the fingerprint path is the one case that genuinely needs
-     * the raw bytes, because the Android Keystore has to be handed something to seal.
-     * Returns a copy so the caller can wipe it without emptying the vault's own.
+     * the key stays put. Returns a copy so the caller can wipe it without emptying the
+     * vault's own.
      */
-    internal fun masterKeyForBiometrics(): ByteArray = masterKey.copyOf()
+    internal fun masterKeyCopy(): ByteArray = masterKey.copyOf()
 
     /**
      * Whether a candidate key is this vault's. Used to confirm a typed password without

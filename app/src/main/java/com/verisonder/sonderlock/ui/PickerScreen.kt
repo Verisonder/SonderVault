@@ -266,10 +266,3 @@ private fun PickerTile(item: DeviceMediaItem, isSelected: Boolean, onToggle: () 
         }
     }
 }
-
-@Composable
-private fun Centred(content: @Composable () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) { content() }
-    }
-}

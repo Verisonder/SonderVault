@@ -9,7 +9,6 @@ import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import java.io.BufferedOutputStream
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.io.OutputStream
 import java.io.RandomAccessFile
@@ -24,13 +23,13 @@ import java.io.RandomAccessFile
  */
 object BundleWriter {
 
-    class Written(val file: File, val entries: Int, val bytes: Long)
+    class Written(val entries: Int, val bytes: Long)
 
     fun write(
         vault: Vault,
         items: List<VaultItem>,
         phrase: List<String>,
-        target: File,
+        sink: OutputStream,
         memKiB: Int = Crypto.ARGON_MEM_KIB,
         iterations: Int = Crypto.ARGON_ITERS,
         parallelism: Int = Crypto.ARGON_PAR,
@@ -64,15 +63,15 @@ object BundleWriter {
         Crypto.wipe(bundleKey, manifest)
 
         var total = 0L
-        BufferedOutputStream(FileOutputStream(target)).use { sink ->
-            sink.write(header)
-            sink.write(sealed)
+        BufferedOutputStream(sink).use { out ->
+            out.write(header)
+            out.write(sealed)
             total += header.size + sealed.size
             for (item in items) {
-                total += vault.copyContainerTo(item, sink)
+                total += vault.copyContainerTo(item, out)
             }
         }
-        return Written(target, entries.size, total)
+        return Written(entries.size, total)
     }
 }
 

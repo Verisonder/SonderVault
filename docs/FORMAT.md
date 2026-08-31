@@ -164,12 +164,23 @@ offset  size  field
     17     1  Argon2 parallelism
     18    16  salt
     34    12  GCM nonce
-    46     -  sealed manifest (AES-256-GCM, header as associated data)
-     -     -  entries, each an .slf container
+    46     4  sealed manifest length, big endian
+    50     -  sealed manifest, with bytes 0..49 as associated data
+     -     -  entries, each a complete .slf container
 ```
 
 The manifest holds one record per entry: original filename, media type, capture date,
-byte length, offset within the bundle, and the entry's file key.
+byte length, offset within the entries region, container length, and the entry's file key.
+
+Offsets are relative to the start of the entries region rather than to the file, and
+they have to be: the manifest sits in front of the entries and its own length depends on
+the offsets it contains, so absolute positions would be circular.
+
+**Entries are copied across unchanged, not re-encrypted.** A container is already
+encrypted under its own key, so exporting is a file copy rather than a second full pass of
+AES over every photo. Restoring goes the other way — items are decrypted and written again
+under fresh keys, so a bundle that leaks later, with its phrase, says nothing about the
+vault it was restored into.
 
 `bundleKey = Argon2id(phrase, salt)`. Six words from the BIP-39 English list is 66 bits;
 against Argon2id at 64 MiB an offline search of that space is not a thing anyone does.

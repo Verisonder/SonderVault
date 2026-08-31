@@ -73,6 +73,48 @@ class VaultStore(
     fun openWithMasterKey(masterKey: ByteArray): Opened =
         Opened(openVault(masterKey), isDecoy = false, wiped = false)
 
+    /**
+     * Add, change or remove the duress password on a vault that already exists.
+     *
+     * The slot file is rebuilt from scratch, because slots cannot be told apart without
+     * the password that opens them and so none can be singled out and rewritten. That is
+     * why this needs the main password as well: it is the only way to prove which vault
+     * is being kept, and the existing master key is carried across so nothing already
+     * stored is orphaned.
+     *
+     * @param duress null removes the duress password entirely.
+     * @return the decoy vault, ready to have its ordinary-looking photos put in it.
+     */
+    fun setDuress(
+        mainPassword: ByteArray,
+        realVault: Vault,
+        duress: ByteArray?,
+        duressWipes: Boolean,
+    ): Vault? {
+        require(confirms(mainPassword, realVault)) { "that is not the main password" }
+
+        val realKey = realVault.masterKeyCopy()
+        val decoyKey = if (duress != null) Crypto.randomKey() else null
+
+        val entries = ArrayList<KeySlots.Entry>()
+        entries.add(KeySlots.Entry(mainPassword, KeySlots.VAULT_REAL, false, realKey))
+        if (duress != null && decoyKey != null) {
+            entries.add(KeySlots.Entry(duress, KeySlots.VAULT_DECOY, duressWipes, decoyKey))
+        }
+        writeSlots(KeySlots.build(entries, argonMemKiB, argonIterations, argonParallelism))
+        Crypto.wipe(realKey)
+
+        return decoyKey?.let { openVault(it) }
+    }
+
+    /**
+     * Whether a decoy exists at all, told by looking for a second directory rather than
+     * by anything recorded. Nothing on disk states it, and the slot file deliberately
+     * cannot answer the question.
+     */
+    fun hasSecondVault(exclude: Vault): Boolean =
+        (vaultsDir.listFiles()?.count { it.isDirectory && it.name != exclude.directory.name } ?: 0) > 0
+
     fun unlock(password: ByteArray): Opened? {
         if (!isConfigured) return null
         val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return null
