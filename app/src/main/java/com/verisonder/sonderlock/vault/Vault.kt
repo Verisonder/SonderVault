@@ -34,7 +34,7 @@ class Vault internal constructor(
     fun items(): List<VaultItem> {
         cache?.let { return it.toList() }
         val loaded = if (!indexFile.exists()) {
-            mutableListOf()
+            mutableListOf<VaultItem>()
         } else {
             VaultFileReader(FileSource(indexFile), indexKey).use { reader ->
                 val bytes = ByteArrayOutputStream().also { reader.copyTo(it) }.toByteArray()

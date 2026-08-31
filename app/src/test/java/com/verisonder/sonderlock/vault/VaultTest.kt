@@ -1,6 +1,7 @@
 package com.verisonder.sonderlock.vault
 
 import com.verisonder.sonderlock.crypto.Crypto
+import com.verisonder.sonderlock.crypto.KeySlots
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

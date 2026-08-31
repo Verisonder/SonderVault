@@ -30,31 +30,42 @@ jobs:
           gradle-version: '8.9'
 
       - name: Unit tests
-        run: gradle --no-daemon testDebugUnitTest
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon testDebugUnitTest 2>&1 | tee -a build-output.txt
 
       - name: Debug build
-        run: gradle --no-daemon assembleDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleDebug 2>&1 | tee -a build-output.txt
 
       # A green test build does not imply a green debug build and the reverse is just as
       # true, so both run. Theme attributes in drawables have broken one variant while
       # leaving the other passing before.
 
-      - name: Upload test report
+      - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-report
-          path: app/build/reports/tests/
+          name: build-output
+          path: |
+            build-output.txt
+            app/build/reports/tests/
           retention-days: 7
 
       - name: Summarise a failure
         if: failure()
+        shell: bash
         run: |
           {
             echo '## Build failed'
             echo
-            echo 'Compiler errors, most recent run:'
+            echo 'Compiler and test output, last 150 lines:'
             echo '```'
-            find app/build/reports -name '*.txt' -exec tail -n 40 {} + 2>/dev/null | tail -n 120 || true
+            grep -E '^(e:|w: .*error|FAILURE|\* What went wrong|Caused by|[0-9]+ tests? completed)' build-output.txt | head -n 60 || true
+            echo '...'
+            tail -n 150 build-output.txt || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
