@@ -1,0 +1,17 @@
+*.iml
+.gradle/
+.idea/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.jks
+*.keystore
+release/
+
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,126 @@
+{
+  "argon2id": {
+    "note": "Argon2id, 64 MiB, t=3, p=2, 32 byte output",
+    "password": "correct horse battery staple",
+    "salt": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "memKiB": 65536,
+    "iters": 3,
+    "par": 2,
+    "expected": "a9d70950800741bbbdd68da6a56581e69bc7ff3931ff54e99e34b34f16a222fd"
+  },
+  "hkdf": {
+    "note": "HKDF-SHA256 expand only; the input is already a uniform 256 bit key",
+    "fileKey": "1111111111111111111111111111111111111111111111111111111111111111",
+    "encKey": "d65bb7a58ea9357d6e1200169ba75dcd7254651d67163fea91aa8bea0e8d46ff",
+    "macKey": "8781177d15858f73fd5a95c15a71519a9cd96b9eb223d26561231fce1e1e3207"
+  },
+  "vaultfile_empty": {
+    "blkLog2": 12,
+    "plainSize": 0,
+    "plainSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "containerSize": 54,
+    "containerSha256": "8edb4effa0c3723ee75628a93ed145eb454b60d269fd59feeb7f607b455c64b8",
+    "header": "534c4631010c97ec6099890f9cfd00000000000000004ca9b62ddd546142e0d80e597464153d0e4be013060649960793fb48be7a7813"
+  },
+  "vaultfile_short": {
+    "blkLog2": 12,
+    "plainSize": 100,
+    "plainSha256": "5fb5d4b7ace49f5eac37422b8e1db12bab83cdbc2b7123abb61457e19c050d4c",
+    "containerSize": 186,
+    "containerSha256": "f2ab770bd05c4a6b333cdd0693bc523f83cc519f9247fa57691856f8cba0142c",
+    "header": "534c4631010c97ec6099890f9cfd00000000000000648cf8b993b2b544f192503d6ca56389c58f1f7904473952e00dd9ace6e09738bf"
+  },
+  "vaultfile_exact_block": {
+    "blkLog2": 12,
+    "plainSize": 4096,
+    "plainSha256": "4e441a3533bb2c10cd5649981d395744213e09a336746b5a3458fee4057205ec",
+    "containerSize": 4182,
+    "containerSha256": "4bb25db9ffd2f8301969450dbcb2cc7ad9da61374b64a7663d9817ac81edbf4a",
+    "header": "534c4631010c97ec6099890f9cfd0000000000001000b5268c99167de3c089c764db8f3581e1c14341638e0cc58c6a82b15e92251d5e"
+  },
+  "vaultfile_multi_block": {
+    "blkLog2": 12,
+    "plainSize": 8525,
+    "plainSha256": "45223f3f2e4431e2e8f22e29910d2517b929a93628a019b4b4cb8dffe1394260",
+    "containerSize": 8675,
+    "containerSha256": "8f24b59a5198afaf52051971e4845551bad6d2d81a000788248685c3d0d677a5",
+    "header": "534c4631010c97ec6099890f9cfd000000000000214d600d2068d677ca3e5abf76e18b545fbb44cb05b746903a1674b2d289eec1b637"
+  },
+  "vaultfile_seeks": {
+    "containerSha256": "cbcbd9e4259e58f5b0065e9f6c788c00b10236c84bda72d4b794cb5262612a73",
+    "reads": [
+      {
+        "offset": 0,
+        "length": 16,
+        "expectedSha256": "cd7d620a0588e54dd46e114a6f4ae5212c82e48abe5a13703649a745861a0c60"
+      },
+      {
+        "offset": 4095,
+        "length": 2,
+        "expectedSha256": "b7d7de245bc54e7b0de8959197c09cfe6ee9827950f2cb3553894c5f4ee2ff5d"
+      },
+      {
+        "offset": 4096,
+        "length": 100,
+        "expectedSha256": "5fb5d4b7ace49f5eac37422b8e1db12bab83cdbc2b7123abb61457e19c050d4c"
+      },
+      {
+        "offset": 8192,
+        "length": 333,
+        "expectedSha256": "37c3b64cb69667e745de6e3215118caeeb6d059e208a27e02389c475aad47b55"
+      },
+      {
+        "offset": 5000,
+        "length": 4000,
+        "expectedSha256": "c2acfe13f5ea7f1537b3f73566786be35b3a51967ee617ef7c406489a49ae623"
+      }
+    ]
+  },
+  "slots": {
+    "size": 302,
+    "sha256": "ba7e27994ff1b72d6c75c42b9d6038adceb8515bc42d7a184b17d209f62d3278",
+    "blob": "534c4b3101000100000000000302dd1610d138ae7b4008c46ff516da0ad8590dd895886524f2f1b9527d414db0ebf9243c693ae7217fe90e397675d49f710d0936fda1ce4cb7194681f55fd9543f77d5d68967988e1ebf130a33d8310a3ca9faf2cb47ba30d99677dd8573dee5dabb2294329c52ff59239ac90ffcbf02f6b25bc4d2b1bd4ced0cf513a001b828a6f8cee456fd9ff5aa1f43259bef9057121220f6b0ea4054a87207db71c614671bd0928a321e2ccccb0659fd2c9ab16d3ffdfa6d6f9ffbecff12eaf38e8b5fd0f981f78646bfd22e949cf44b2697d8a22e8892a3aa4482373dc927297e57abe0c12f719bcd293e811952a2a45fc79de3364a9bbbcfccf51ea3b765b7b85d8ff84df238385f5a448503b2a9e945246a7a9fd6d2b6e6a9a935bcc8100b02114f2d5d",
+    "cases": [
+      {
+        "password": "real-password",
+        "vaultId": 0,
+        "wipe": false,
+        "masterKey": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+      },
+      {
+        "password": "duress-password",
+        "vaultId": 1,
+        "wipe": true,
+        "masterKey": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+      },
+      {
+        "password": "not-a-password",
+        "opens": false
+      }
+    ]
+  },
+  "wordlist": {
+    "source": "BIP-39 English",
+    "count": 2048,
+    "sha256": "2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda",
+    "first": "abandon",
+    "last": "zoo",
+    "index_1023": "lend"
+  },
+  "phrase": {
+    "words": [
+      "abandon",
+      "zoo",
+      "legal",
+      "winner",
+      "thank",
+      "yellow"
+    ],
+    "salt": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "key": "6ee287c18fb17edd9cc1ddcd64bb2bfce9ecd0c0a4ee6f5ac3e59a4b1487c09d",
+    "normalise": {
+      "input": "ABANdon  Zoo lega1x legal winner thank yellow",
+      "note": "words are matched on their unique first four letters"
+    }
+  }
+}
