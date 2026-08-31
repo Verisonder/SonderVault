@@ -155,6 +155,14 @@ class Vault internal constructor(
      */
     internal fun masterKeyForBiometrics(): ByteArray = masterKey.copyOf()
 
+    /**
+     * Whether a candidate key is this vault's. Used to confirm a typed password without
+     * the password ever being compared to a stored copy of itself, because there isn't
+     * one — the only test available is whether it unwraps the same key.
+     */
+    internal fun matchesMasterKey(candidate: ByteArray): Boolean =
+        Crypto.constantTimeEquals(masterKey, candidate)
+
     private fun contentFile(id: String) = File(itemsDir, "$id.slf")
 
     private fun thumbnailFile(id: String) = File(itemsDir, "$id.thb")

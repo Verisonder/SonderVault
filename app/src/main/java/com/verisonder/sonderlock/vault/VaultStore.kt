@@ -86,6 +86,22 @@ class VaultStore(
     }
 
     /**
+     * Confirm that a typed password belongs to the vault that is already open.
+     *
+     * Deliberately does not honour the wipe flag. This is a confirmation prompt, not an
+     * unlock: someone mistyping their duress password into it should not destroy the
+     * vault they are standing in. The duress password simply fails to confirm, because it
+     * unwraps a different key.
+     */
+    fun confirms(password: ByteArray, vault: Vault): Boolean {
+        if (!isConfigured) return false
+        val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return false
+        val matches = vault.matchesMasterKey(unlocked.masterKey)
+        Crypto.wipe(unlocked.masterKey)
+        return matches
+    }
+
+    /**
      * Where a vault lives is derived from its own master key, so the directory names are
      * unattributable: nothing on disk says which of them is the real one, and a directory
      * whose key you do not hold cannot even be identified as yours.

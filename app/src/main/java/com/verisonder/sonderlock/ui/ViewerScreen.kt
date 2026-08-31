@@ -46,6 +46,7 @@ import com.verisonder.sonderlock.media.VaultExport
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import com.verisonder.sonderlock.vault.VaultSession
+import com.verisonder.sonderlock.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -62,6 +63,7 @@ private const val MAX_IMAGE_EDGE = 2560
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun ViewerScreen(
+    store: VaultStore,
     vault: Vault,
     items: List<VaultItem>,
     startIndex: Int,
@@ -124,41 +126,48 @@ fun ViewerScreen(
     val pending = confirming
     if (pending != null) {
         val item = items[pager.currentPage.coerceIn(0, items.lastIndex)]
-        AlertDialog(
-            onDismissRequest = { confirming = null },
-            title = { Text(if (pending == Action.PutBack) "Put back on phone?" else "Delete?") },
-            text = {
-                Text(
-                    if (pending == Action.PutBack) {
-                        "It returns to your gallery as an ordinary file and leaves the vault."
-                    } else {
-                        "This cannot be undone."
-                    }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirming = null
-                    busy = if (pending == Action.PutBack) "Writing…" else "Deleting…"
-                    scope.launch {
-                        val error = withContext(Dispatchers.IO) {
-                            if (pending == Action.PutBack) {
-                                VaultExport.putBackOnPhone(context, vault, item).error
-                            } else {
-                                runCatching { vault.delete(item) }.exceptionOrNull()?.message
-                            }
+
+        fun run(label: String, work: () -> String?) {
+            confirming = null
+            busy = label
+            scope.launch {
+                val error = withContext(Dispatchers.IO) { work() }
+                busy = null
+                problem = error
+                if (error == null) {
+                    VaultSession.noteContentsChanged()
+                    onClose()
+                }
+            }
+        }
+
+        if (pending == Action.PutBack) {
+            ConfirmPassword(
+                store = store,
+                vault = vault,
+                reason = "This writes the file back to your gallery, where anything on " +
+                    "the phone can read it.",
+                confirmLabel = "Put back",
+                onConfirmed = {
+                    run("Writing…") { VaultExport.putBackOnPhone(context, vault, item).error }
+                },
+                onCancel = { confirming = null },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = { confirming = null },
+                title = { Text("Delete?") },
+                text = { Text("This cannot be undone.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        run("Deleting…") {
+                            runCatching { vault.delete(item) }.exceptionOrNull()?.message
                         }
-                        busy = null
-                        problem = error
-                        if (error == null) {
-                            VaultSession.noteContentsChanged()
-                            onClose()
-                        }
-                    }
-                }) { Text(if (pending == Action.PutBack) "Put back" else "Delete") }
-            },
-            dismissButton = { TextButton(onClick = { confirming = null }) { Text("Cancel") } },
-        )
+                    }) { Text("Delete") }
+                },
+                dismissButton = { TextButton(onClick = { confirming = null }) { Text("Cancel") } },
+            )
+        }
     }
 }
 

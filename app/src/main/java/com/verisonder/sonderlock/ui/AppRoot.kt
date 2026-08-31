@@ -63,6 +63,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 picking = false
             }
             viewing != null -> ViewerScreen(
+                store = store,
                 vault = opened.vault,
                 // Read here rather than passed down, so the list the pager walks is the
                 // one on disk right now: putting an item back removes it mid-view.
