@@ -219,11 +219,17 @@ class CryptoVectorTest {
     // ------------------------------------------------------------------ phrases
 
     /**
-     * The shipped file, not a copy. Unit tests run with the module directory as their
-     * working directory, so this checks the resource the app will actually load — a
-     * second copy under test resources could drift from it and the test would still pass.
+     * The shipped file, not a copy. A second copy under test resources could drift from
+     * the one the app actually loads and the test would still pass.
+     *
+     * Both candidates are tried because the working directory of a unit test is the
+     * module directory under Gradle and the repository root under some IDE run
+     * configurations, and a test that fails on where it was started from is noise.
      */
-    private val wordlistFile = File("src/main/res/raw/bip39_en.txt")
+    private val wordlistFile: File = listOf(
+        File("src/main/res/raw/bip39_en.txt"),
+        File("app/src/main/res/raw/bip39_en.txt"),
+    ).firstOrNull { it.exists() } ?: error("wordlist not found from ${File(".").absolutePath}")
 
     private fun phrase() = RecoveryPhrase.from(wordlistFile.readLines().asSequence())
 
