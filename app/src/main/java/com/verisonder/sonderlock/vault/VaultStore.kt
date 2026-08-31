@@ -108,6 +108,52 @@ class VaultStore(
     }
 
     /**
+     * Change an existing duress password, or its behaviour, using only the current duress
+     * password.
+     *
+     * The old password identifies its own slot and that slot alone is rewritten, so the
+     * main password never has to be typed to change this. The decoy's master key is
+     * carried across unchanged — a fresh one would orphan every photo already in it.
+     */
+    fun changeDuress(currentDuress: ByteArray, newDuress: ByteArray, wipes: Boolean): Boolean {
+        if (!isConfigured) return false
+        val blob = slotsFile.readBytes()
+        val unlocked = KeySlots.unlock(blob, currentDuress) ?: return false
+        if (!unlocked.isDecoy) {
+            // That was the main password, not the duress one. Rewriting the real slot
+            // here would be a very expensive mistake.
+            Crypto.wipe(unlocked.masterKey)
+            return false
+        }
+        val updated = KeySlots.replaceSlot(
+            blob, unlocked.slotIndex, newDuress, KeySlots.VAULT_DECOY, wipes, unlocked.masterKey,
+        )
+        Crypto.wipe(unlocked.masterKey)
+        if (updated == null) return false
+        writeSlots(updated)
+        return true
+    }
+
+    /** Remove the duress password and the vault it opened. */
+    fun removeDuress(currentDuress: ByteArray): Boolean {
+        if (!isConfigured) return false
+        val blob = slotsFile.readBytes()
+        val unlocked = KeySlots.unlock(blob, currentDuress) ?: return false
+        if (!unlocked.isDecoy) {
+            Crypto.wipe(unlocked.masterKey)
+            return false
+        }
+        val decoy = openVault(unlocked.masterKey)
+        Crypto.wipe(unlocked.masterKey)
+        writeSlots(KeySlots.clearSlot(blob, unlocked.slotIndex))
+        // The decoy's own photos go with it. Leaving a directory nothing can open is a
+        // stack of bytes that only ever looks suspicious.
+        decoy.destroyContents()
+        decoy.directory.deleteRecursively()
+        return true
+    }
+
+    /**
      * Whether a decoy exists at all, told by looking for a second directory rather than
      * by anything recorded. Nothing on disk states it, and the slot file deliberately
      * cannot answer the question.

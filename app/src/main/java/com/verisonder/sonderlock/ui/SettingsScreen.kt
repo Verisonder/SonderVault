@@ -79,11 +79,17 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
         ) {
             SectionLabel("Vault")
-            Row(
-                title = "Duress password",
-                detail = "Opens a different set of photos.",
-                onClick = onDuress,
-            )
+            // Absent inside the decoy, and not merely disabled. Someone who forced this
+            // vault open can scroll settings too, and a greyed-out row named "Duress
+            // password" tells them exactly what they are looking at and that there is
+            // more to find.
+            if (!VaultSession.isDecoy) {
+                Row(
+                    title = "Duress password",
+                    detail = "Opens a different set of photos.",
+                    onClick = onDuress,
+                )
+            }
             SwitchRow(
                 title = "Fingerprint unlock",
                 detail = when {

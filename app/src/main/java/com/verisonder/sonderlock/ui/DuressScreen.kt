@@ -66,7 +66,10 @@ fun DuressScreen(
     onClose: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var mainPassword by remember { mutableStateOf("") }
+    // Set already means the current duress password identifies its own slot, so that is
+    // the one to ask for. The main password is only needed to create the first one.
+    val alreadySet = remember { store.hasSecondVault(vault) }
+    var current by remember { mutableStateOf("") }
     var duress by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
     var wipes by remember { mutableStateOf(false) }
@@ -75,8 +78,8 @@ fun DuressScreen(
 
     val tooShort = duress.isNotEmpty() && duress.length < MINIMUM_LENGTH
     val mismatch = confirm.isNotEmpty() && confirm != duress
-    val sameAsMain = duress.isNotEmpty() && duress == mainPassword
-    val ready = mainPassword.isNotEmpty() &&
+    val sameAsMain = duress.isNotEmpty() && duress == current
+    val ready = current.isNotEmpty() &&
         duress.length >= MINIMUM_LENGTH &&
         confirm == duress &&
         !sameAsMain &&
@@ -102,17 +105,23 @@ fun DuressScreen(
                 .padding(24.dp),
         ) {
             Text(
-                "A duress password that opens a different set of photos. Anyone made to " +
-                    "hand over a password can hand over this one.",
+                if (alreadySet) {
+                    "Change the password, or what happens when it is used."
+                } else {
+                    "A duress password that opens a different set of photos. Anyone made " +
+                        "to hand over a password can hand over this one."
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Spacer(Modifier.height(24.dp))
             OutlinedTextField(
-                value = mainPassword,
-                onValueChange = { mainPassword = it; problem = null },
-                label = { Text("Your current password") },
+                value = current,
+                onValueChange = { current = it; problem = null },
+                label = {
+                    Text(if (alreadySet) "Current duress password" else "Your password")
+                },
                 singleLine = true,
                 enabled = !working,
                 visualTransformation = PasswordVisualTransformation(),
@@ -127,13 +136,13 @@ fun DuressScreen(
             OutlinedTextField(
                 value = duress,
                 onValueChange = { duress = it; problem = null },
-                label = { Text("Duress password") },
+                label = { Text(if (alreadySet) "New duress password" else "Duress password") },
                 singleLine = true,
                 enabled = !working,
                 isError = tooShort || sameAsMain,
                 supportingText = when {
                     sameAsMain -> {
-                        { Text("It has to be different from your own.") }
+                        { Text("It has to be different from the one above.") }
                     }
                     tooShort -> {
                         { Text("At least $MINIMUM_LENGTH characters") }
@@ -152,7 +161,9 @@ fun DuressScreen(
             OutlinedTextField(
                 value = confirm,
                 onValueChange = { confirm = it; problem = null },
-                label = { Text("Duress password again") },
+                label = {
+                    Text(if (alreadySet) "New duress password again" else "Duress password again")
+                },
                 singleLine = true,
                 enabled = !working,
                 isError = mismatch,
@@ -217,21 +228,37 @@ fun DuressScreen(
                     scope.launch {
                         val result = withContext(Dispatchers.Default) {
                             runCatching {
-                                store.setDuress(
-                                    mainPassword.toByteArray(Charsets.UTF_8),
-                                    vault,
-                                    duress.toByteArray(Charsets.UTF_8),
-                                    wipes,
-                                )
+                                if (alreadySet) {
+                                    val ok = store.changeDuress(
+                                        current.toByteArray(Charsets.UTF_8),
+                                        duress.toByteArray(Charsets.UTF_8),
+                                        wipes,
+                                    )
+                                    if (!ok) error("wrong") else null
+                                } else {
+                                    store.setDuress(
+                                        current.toByteArray(Charsets.UTF_8),
+                                        vault,
+                                        duress.toByteArray(Charsets.UTF_8),
+                                        wipes,
+                                    ) ?: error("failed")
+                                }
                             }
                         }
                         working = false
                         result
                             .onSuccess { decoy ->
-                                if (decoy != null) onChooseDecoyPhotos(decoy)
-                                else problem = "Could not set that up."
+                                // A vault that already has its photos does not need to be
+                                // filled again.
+                                if (decoy != null) onChooseDecoyPhotos(decoy) else onClose()
                             }
-                            .onFailure { problem = "That is not your current password." }
+                            .onFailure {
+                                problem = if (alreadySet) {
+                                    "That is not your current duress password."
+                                } else {
+                                    "That is not your password."
+                                }
+                            }
                     }
                 },
                 enabled = ready,
@@ -248,13 +275,40 @@ fun DuressScreen(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "Next you choose which photos the duress password shows. Pick ordinary " +
-                    "ones — an empty vault gives the game away.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!alreadySet) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Next you choose which photos the duress password shows. Pick " +
+                        "ordinary ones — an empty vault gives the game away.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (alreadySet) {
+                Spacer(Modifier.height(24.dp))
+                TextButton(
+                    onClick = {
+                        working = true
+                        problem = null
+                        scope.launch {
+                            val ok = withContext(Dispatchers.Default) {
+                                store.removeDuress(current.toByteArray(Charsets.UTF_8))
+                            }
+                            working = false
+                            if (ok) onClose()
+                            else problem = "That is not your current duress password."
+                        }
+                    },
+                    enabled = current.isNotEmpty() && !working,
+                ) { Text("Remove the duress password") }
+                Text(
+                    "The photos it shows are deleted with it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = onClose, enabled = !working) { Text("Cancel") }
         }

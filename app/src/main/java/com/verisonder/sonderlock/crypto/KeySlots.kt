@@ -136,6 +136,54 @@ object KeySlots {
     }
 
     /**
+     * Rewrite one slot in place, against the file's existing salt and cost.
+     *
+     * This is how a duress password gets changed without the main password being
+     * involved: the old one identifies its own slot, and every other slot is left exactly
+     * as it was. Only adding a first duress password needs the main password, because
+     * nothing else can say which slot is safe to write into.
+     */
+    fun replaceSlot(
+        blob: ByteArray,
+        slotIndex: Int,
+        password: ByteArray,
+        vaultId: Int,
+        wipe: Boolean,
+        masterKey: ByteArray,
+    ): ByteArray? {
+        if (blob.size != FILE_SIZE || slotIndex !in 0 until SLOT_COUNT) return null
+        val header = blob.copyOfRange(0, HEADER_SIZE)
+        val memKiB = Crypto.getIntBE(blob, 5)
+        val iterations = Crypto.getIntBE(blob, 9)
+        val parallelism = blob[13].toInt() and 0xFF
+        val salt = blob.copyOfRange(14, 14 + SALT_BYTES)
+
+        val kek = Crypto.argon2id(password, salt, memKiB, iterations, parallelism)
+        val payload = ByteArray(PAYLOAD_SIZE)
+        payload[0] = vaultId.toByte()
+        payload[1] = if (wipe) FLAG_WIPE.toByte() else 0
+        System.arraycopy(Crypto.random(6), 0, payload, 2, 6)
+        System.arraycopy(masterKey, 0, payload, 8, Crypto.KEY_BYTES)
+
+        val nonce = Crypto.random(Crypto.GCM_NONCE_BYTES)
+        val slot = nonce + Crypto.gcmSeal(kek, nonce, payload, header)
+        Crypto.wipe(kek, payload)
+
+        val out = blob.copyOf()
+        System.arraycopy(slot, 0, out, HEADER_SIZE + slotIndex * SLOT_SIZE, SLOT_SIZE)
+        return out
+    }
+
+    /** Replace a slot with random bytes, which is what an unused one looks like. */
+    fun clearSlot(blob: ByteArray, slotIndex: Int): ByteArray {
+        val out = blob.copyOf()
+        if (slotIndex in 0 until SLOT_COUNT) {
+            System.arraycopy(Crypto.random(SLOT_SIZE), 0, out, HEADER_SIZE + slotIndex * SLOT_SIZE, SLOT_SIZE)
+        }
+        return out
+    }
+
+    /**
      * Overwrite the slot that unlocked the real vault with random bytes.
      *
      * This is the duress wipe. It runs before any file is touched, because it is the
