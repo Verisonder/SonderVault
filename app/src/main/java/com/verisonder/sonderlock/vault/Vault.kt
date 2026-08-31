@@ -146,6 +146,28 @@ class Vault internal constructor(
         directory.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
     /**
+     * The stored container for an item, byte for byte.
+     *
+     * A bundle copies these across rather than re-encrypting, so writing one costs a file
+     * copy instead of a full pass of AES over every photo.
+     */
+    internal fun containerLength(item: VaultItem): Long = contentFile(item.id).length()
+
+    internal fun copyContainerTo(item: VaultItem, sink: java.io.OutputStream): Long {
+        var written = 0L
+        contentFile(item.id).inputStream().use { source ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = source.read(buffer)
+                if (read <= 0) break
+                sink.write(buffer, 0, read)
+                written += read
+            }
+        }
+        return written
+    }
+
+    /**
      * The master key, for wrapping under the biometric key and nothing else.
      *
      * It is here reluctantly. Every other operation goes through this class precisely so

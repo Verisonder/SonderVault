@@ -274,3 +274,36 @@ class VaultFileReader(private val source: RandomSource, fileKey: ByteArray) : Cl
         Crypto.wipe(encKey, macKey)
     }
 }
+
+/**
+ * A plain InputStream over a container, so a decrypted item can be handed to anything
+ * that reads streams without the whole thing being held in memory first.
+ */
+fun VaultFileReader.asInputStream(): java.io.InputStream = object : java.io.InputStream() {
+    private var position = 0L
+    private var buffer = ByteArray(0)
+    private var offset = 0
+
+    private fun fill(): Boolean {
+        if (offset < buffer.size) return true
+        if (position >= plainSize) return false
+        buffer = read(position, 64 * 1024)
+        if (buffer.isEmpty()) return false
+        position += buffer.size
+        offset = 0
+        return true
+    }
+
+    override fun read(): Int = if (!fill()) -1 else buffer[offset++].toInt() and 0xFF
+
+    override fun read(destination: ByteArray, at: Int, length: Int): Int {
+        if (length == 0) return 0
+        if (!fill()) return -1
+        val take = minOf(length, buffer.size - offset)
+        System.arraycopy(buffer, offset, destination, at, take)
+        offset += take
+        return take
+    }
+
+    override fun available(): Int = (plainSize - position + (buffer.size - offset)).toInt()
+}
