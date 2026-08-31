@@ -127,6 +127,15 @@ fun ViewerScreen(
     val current = items[pager.currentPage.coerceIn(0, items.lastIndex)]
     val currentIsVideo = current.mimeType.startsWith("video/")
 
+    // On a video the bars stay put.
+    //
+    // PlayerView handles its own touches, so a tap never reaches this side — that is why
+    // they would not hide. Driving them from the player's controller instead was the next
+    // attempt and it went the other way: the controller reports itself hidden and the
+    // actions disappeared entirely. Two wrong guesses is enough. Photos keep tap to hide,
+    // video keeps its actions visible above the scrubber, and both are predictable.
+    val barsVisible = chrome || currentIsVideo
+
     // Zooming out of one photo should not leave the next one stuck.
     LaunchedEffect(pager.currentPage) { zoomed = false }
 
@@ -153,12 +162,7 @@ fun ViewerScreen(
             val item = items[page]
             val isCurrent = pager.currentPage == page
             if (item.mimeType.startsWith("video/")) {
-                VideoPage(
-                    vault = vault,
-                    item = item,
-                    isCurrent = isCurrent,
-                    onControlsVisible = { if (isCurrent) chrome = it },
-                )
+                VideoPage(vault = vault, item = item, isCurrent = isCurrent)
             } else {
                 ImagePage(
                     vault = vault,
@@ -170,7 +174,7 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(
-            visible = chrome,
+            visible = barsVisible,
             enter = fadeIn() + slideInVertically { -it },
             exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier.align(Alignment.TopCenter),
@@ -207,7 +211,7 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(
-            visible = chrome,
+            visible = barsVisible,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -410,24 +414,16 @@ private fun decodeFull(vault: Vault, item: VaultItem): ImageBitmap? {
 }
 
 /**
- * Video pages let the player own the tap.
+ * Video pages let the player own every touch.
  *
- * PlayerView handles its own touches and shows or hides its controller on them, so a tap
- * handler layered on top never fires — which is why the bars sat there and would not go
- * away. Instead of fighting it, the bars follow the controller: whatever the player
- * decides is visible, the rest of the screen matches.
- *
- * The cost is that pinch to zoom does not work on video, since the gestures never reach
- * this side. Worth saying plainly rather than pretending it does.
+ * PlayerView handles its own, so neither a tap nor a pinch reaches the Compose side. The
+ * controller shows and hides on tap the way it always does; the app's own bars are left
+ * alone above it. Pinch to zoom therefore does not work on video, which is worth saying
+ * plainly rather than pretending otherwise.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-private fun VideoPage(
-    vault: Vault,
-    item: VaultItem,
-    isCurrent: Boolean,
-    onControlsVisible: (Boolean) -> Unit,
-) {
+private fun VideoPage(vault: Vault, item: VaultItem, isCurrent: Boolean) {
     val context = LocalContext.current
     val player = remember(item.id) {
         ExoPlayer.Builder(context)
@@ -456,15 +452,7 @@ private fun VideoPage(
                 useController = true
                 controllerAutoShow = true
                 controllerHideOnTouch = true
-                // Never on a timer. The controller goes away when tapped and not before,
-                // so the bars do not vanish out from under a finger.
-                controllerShowTimeoutMs = 0
                 setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                setControllerVisibilityListener(
-                    PlayerView.ControllerVisibilityListener { visibility ->
-                        onControlsVisible(visibility == android.view.View.VISIBLE)
-                    }
-                )
             }
         },
         modifier = Modifier.fillMaxSize(),
