@@ -27,10 +27,6 @@ import com.verisonder.sonderlock.crypto.Crypto
 import com.verisonder.sonderlock.security.BiometricKey
 import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.Vault
-import androidx.fragment.app.FragmentActivity
-import com.verisonder.sonderlock.crypto.Crypto
-import com.verisonder.sonderlock.security.BiometricKey
-import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
