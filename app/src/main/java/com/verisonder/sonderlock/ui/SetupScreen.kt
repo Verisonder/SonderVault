@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -14,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -53,112 +55,118 @@ fun SetupScreen(store: VaultStore, onDone: () -> Unit) {
     val mismatch = confirm.isNotEmpty() && confirm != password
     val ready = password.length >= MINIMUM_LENGTH && confirm == password && !working
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp, vertical = 40.dp),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("Choose a password", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(12.dp))
-        Text(
-            "It is the only way in. Nothing is stored anywhere else, so it cannot be " +
-                "reset or recovered.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Spacer(Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it; problem = null },
-            label = { Text("Password") },
-            singleLine = true,
-            enabled = !working,
-            isError = tooShort,
-            supportingText = if (tooShort) {
-                { Text("At least $MINIMUM_LENGTH characters") }
-            } else {
-                null
-            },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Next,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = confirm,
-            onValueChange = { confirm = it; problem = null },
-            label = { Text("Password again") },
-            singleLine = true,
-            enabled = !working,
-            isError = mismatch,
-            supportingText = if (mismatch) {
-                { Text("These do not match") }
-            } else {
-                null
-            },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done,
-            ),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        problem?.let {
-            Spacer(Modifier.height(16.dp))
-            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        }
-
-        Spacer(Modifier.height(28.dp))
-
-        Button(
-            onClick = {
-                working = true
-                problem = null
-                scope.launch {
-                    // Argon2id at 64 MiB takes a moment on a phone and must not run on
-                    // the thread drawing the screen.
-                    val result = withContext(Dispatchers.Default) {
-                        runCatching {
-                            val bytes = password.toByteArray(Charsets.UTF_8)
-                            val configured = store.configure(bytes, null, false)
-                            VaultStore.Opened(configured.real, isDecoy = false, wiped = false)
-                        }
-                    }
-                    working = false
-                    result
-                        .onSuccess { VaultSession.open(it); onDone() }
-                        .onFailure { problem = it.message ?: "Could not create the vault" }
-                }
-            },
-            enabled = ready,
-            modifier = Modifier.fillMaxWidth(),
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
-            if (working) {
-                CircularProgressIndicator(
-                    modifier = Modifier.height(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            } else {
-                Text("Create vault")
-            }
-        }
+            Text("Choose a password", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "It is the only way in. It cannot be reset or recovered.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-        Spacer(Modifier.height(20.dp))
-        Text(
-            "Uninstalling the app deletes everything in it. You can export a backup later.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            Spacer(Modifier.height(32.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; problem = null },
+                label = { Text("Password") },
+                singleLine = true,
+                enabled = !working,
+                isError = tooShort,
+                supportingText = if (tooShort) {
+                    { Text("At least $MINIMUM_LENGTH characters") }
+                } else {
+                    null
+                },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Next,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = confirm,
+                onValueChange = { confirm = it; problem = null },
+                label = { Text("Password again") },
+                singleLine = true,
+                enabled = !working,
+                isError = mismatch,
+                supportingText = if (mismatch) {
+                    { Text("These do not match") }
+                } else {
+                    null
+                },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            problem?.let {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            Spacer(Modifier.height(32.dp))
+
+            Button(
+                onClick = {
+                    working = true
+                    problem = null
+                    scope.launch {
+                        // Argon2id at 64 MiB takes a moment on a phone and must not run
+                        // on the thread drawing the screen.
+                        val result = withContext(Dispatchers.Default) {
+                            runCatching {
+                                val bytes = password.toByteArray(Charsets.UTF_8)
+                                val configured = store.configure(bytes, null, false)
+                                VaultStore.Opened(configured.real, isDecoy = false, wiped = false)
+                            }
+                        }
+                        working = false
+                        result
+                            .onSuccess { VaultSession.open(it); onDone() }
+                            .onFailure { problem = it.message ?: "Could not create the vault" }
+                    }
+                },
+                enabled = ready,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (working) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text("Create vault")
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            Text(
+                "Uninstalling the app deletes everything in it. You can export a backup later.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

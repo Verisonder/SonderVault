@@ -16,12 +16,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
@@ -45,6 +55,7 @@ import com.verisonder.sonderlock.vault.VaultSession
  * shoulder learns nothing from it, which is why there is no badge, banner or hint that a
  * second vault exists anywhere on this screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaultScreen(
     vault: Vault,
@@ -54,7 +65,6 @@ fun VaultScreen(
     onLock: () -> Unit,
 ) {
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
-
     var fingerprintOffer by remember {
         mutableStateOf(
             BiometricKey.isAvailable(activity) && !BiometricKey.isEnabled(activity.filesDir),
@@ -62,71 +72,87 @@ fun VaultScreen(
     }
     var note by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (items.isEmpty()) "Empty" else "${items.size} items",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row {
-                TextButton(onClick = onAdd) { Text("Add") }
-                TextButton(onClick = onLock) { Text("Lock") }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Spacer(Modifier.height(20.dp))
-
-        if (fingerprintOffer) {
-            Offer(
-                title = "Turn on fingerprint unlock?",
-                detail = "Your password still works.",
-                action = "Turn on",
-                onAction = {
-                    BiometricPrompts.enable(
-                        activity,
-                        activity.filesDir,
-                        vault.masterKeyForBiometrics(),
-                    ) { ok, message ->
-                        fingerprintOffer = !ok
-                        note = if (ok) "Fingerprint unlock is on." else message
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("SonderLock") },
+                actions = {
+                    IconButton(onClick = onLock) {
+                        Icon(Icons.Filled.Lock, contentDescription = "Lock")
                     }
                 },
-                onDismiss = { fingerprintOffer = false },
             )
-        }
-
-        note?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(20.dp))
-        }
-
-        if (items.isEmpty()) {
-            // An empty screen is an invitation, not a status report.
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Nothing in here yet.", style = MaterialTheme.typography.bodyLarge)
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = onAdd) { Text("Add photos") }
+        },
+        floatingActionButton = {
+            if (items.isNotEmpty()) {
+                FloatingActionButton(onClick = onAdd) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add")
+                }
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 108.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                    Tile(vault, item) { onOpen(index) }
+        },
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (fingerprintOffer) {
+                OfferCard(
+                    title = "Turn on fingerprint unlock?",
+                    detail = "Your password still works.",
+                    action = "Turn on",
+                    onAction = {
+                        BiometricPrompts.enable(
+                            activity,
+                            activity.filesDir,
+                            vault.masterKeyForBiometrics(),
+                        ) { ok, message ->
+                            fingerprintOffer = !ok
+                            note = if (ok) "Fingerprint unlock is on." else message
+                        }
+                    },
+                    onDismiss = { fingerprintOffer = false },
+                )
+            }
+
+            note?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+
+            if (items.isEmpty()) {
+                // An empty screen is an invitation, not a status report.
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text("Nothing in here yet", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Photos and videos you add are encrypted and removed from your phone.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    ExtendedFloatingActionButton(
+                        onClick = onAdd,
+                        icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                        text = { Text("Add photos") },
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 104.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = 8.dp, end = 8.dp, top = 8.dp, bottom = 96.dp,
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                        Tile(vault, item) { onOpen(index) }
+                    }
                 }
             }
         }
@@ -139,6 +165,7 @@ private fun Tile(vault: Vault, item: VaultItem, onOpen: () -> Unit) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)
+            .clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onOpen),
     ) {
@@ -153,33 +180,41 @@ private fun Tile(vault: Vault, item: VaultItem, onOpen: () -> Unit) {
         if (item.mimeType.startsWith("video/")) {
             Text(
                 "\u25B6",
-                modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.inverseOnSurface,
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
             )
         }
     }
 }
 
 @Composable
-private fun Offer(
+private fun OfferCard(
     title: String,
     detail: String,
     action: String,
     onAction: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    Column {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.height(6.dp))
-        Text(detail, style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onAction) { Text(action) }
-            TextButton(onClick = onDismiss) { Text("Not now") }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onAction) { Text(action) }
+                TextButton(onClick = onDismiss) { Text("Not now") }
+            }
         }
-        Spacer(Modifier.height(24.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        Spacer(Modifier.height(20.dp))
     }
 }

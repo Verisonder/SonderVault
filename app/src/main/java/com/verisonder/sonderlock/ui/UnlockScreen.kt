@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,8 +42,8 @@ import kotlinx.coroutines.withContext
 /**
  * No app name, no logo, no heading.
  *
- * A lock screen that announces what it guards is a lock screen that tells anyone glancing
- * at the phone that there is something here worth taking.
+ * A lock screen that announces what it guards tells anyone glancing at the phone that
+ * there is something here worth taking.
  *
  * A password that opens nothing gets the same flat answer whichever password it was, so
  * nothing here says whether a second one exists.
@@ -99,56 +101,53 @@ fun UnlockScreen(
         if (fingerprintReady) tryFingerprint()
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 28.dp, vertical = 40.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.Start,
-    ) {
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it; problem = null },
-            label = { Text("Password") },
-            singleLine = true,
-            enabled = !working,
-            isError = problem != null,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Go,
-            ),
-            keyboardActions = KeyboardActions(onGo = { submit() }),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        problem?.let {
-            Spacer(Modifier.height(12.dp))
-            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        Button(
-            onClick = { submit() },
-            enabled = password.isNotEmpty() && !working,
-            modifier = Modifier.fillMaxWidth(),
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (working) {
-                CircularProgressIndicator(
-                    modifier = Modifier.height(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            } else {
-                Text("Open")
-            }
-        }
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; problem = null },
+                label = { Text("Password") },
+                singleLine = true,
+                enabled = !working,
+                isError = problem != null,
+                supportingText = problem?.let { { Text(it) } },
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Go,
+                ),
+                keyboardActions = KeyboardActions(onGo = { submit() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-        if (fingerprintReady) {
-            Spacer(Modifier.height(8.dp))
-            TextButton(onClick = { tryFingerprint() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Use fingerprint")
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = { submit() },
+                enabled = password.isNotEmpty() && !working,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (working) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text("Open")
+                }
+            }
+
+            if (fingerprintReady) {
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = { tryFingerprint() }) { Text("Use fingerprint") }
             }
         }
     }

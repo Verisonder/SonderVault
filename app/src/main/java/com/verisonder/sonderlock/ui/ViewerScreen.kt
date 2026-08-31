@@ -3,24 +3,31 @@ package com.verisonder.sonderlock.ui
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -35,7 +42,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -57,10 +63,16 @@ private const val MAX_IMAGE_EDGE = 2560
 /**
  * One item at a time, swipe to move between them.
  *
+ * The actions live in an overflow menu in the app bar, not in a row along the bottom.
+ * The bottom belongs to the player: its timeline, scrubber and clock all sit there, and
+ * the earlier version put buttons on top of them so the two were unreadable together.
+ * Anything permanent at the bottom of a video screen is in the player's way.
+ *
  * Neither path writes a decrypted copy anywhere. Images are decoded into memory; video is
  * read by the player through VaultDataSource, block by block, as it plays.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ViewerScreen(
     store: VaultStore,
@@ -70,73 +82,96 @@ fun ViewerScreen(
     onClose: () -> Unit,
 ) {
     if (items.isEmpty()) {
-        onClose()
+        LaunchedEffect(Unit) { onClose() }
         return
     }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     val pager = rememberPagerState(
         initialPage = startIndex.coerceIn(0, items.lastIndex),
         pageCount = { items.size },
     )
+    var menuOpen by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf<Action?>(null) }
     var busy by remember { mutableStateOf<String?>(null) }
-    var problem by remember { mutableStateOf<String?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-            val item = items[page]
-            if (item.mimeType.startsWith("video/")) {
-                VideoPage(vault, item, isCurrent = pager.currentPage == page)
-            } else {
-                ImagePage(vault, item)
-            }
-        }
+    val current = items[pager.currentPage.coerceIn(0, items.lastIndex)]
 
-        Column(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp)) {
-            problem?.let {
-                Text(it, color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(8.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                TextButton(onClick = onClose, enabled = busy == null) { Text("Close") }
-                Row {
-                    TextButton(
-                        onClick = { confirming = Action.PutBack },
-                        enabled = busy == null,
-                    ) { Text("Put back on phone") }
-                    TextButton(
-                        onClick = { confirming = Action.Delete },
-                        enabled = busy == null,
-                    ) { Text("Delete") }
+    Scaffold(
+        containerColor = Color.Black,
+        contentColor = Color.White,
+        snackbarHost = { SnackbarHost(snackbar) },
+        topBar = {
+            TopAppBar(
+                title = { Text(current.name, maxLines = 1) },
+                navigationIcon = {
+                    IconButton(onClick = onClose, enabled = busy == null) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { menuOpen = true }, enabled = busy == null) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Put back on phone") },
+                            onClick = { menuOpen = false; confirming = Action.PutBack },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            onClick = { menuOpen = false; confirming = Action.Delete },
+                        )
+                    }
+                },
+                // Floated over the photo rather than sitting on a bar of its own, so the
+                // image keeps the whole screen.
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White,
+                ),
+            )
+        },
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+                val item = items[page]
+                if (item.mimeType.startsWith("video/")) {
+                    VideoPage(vault, item, isCurrent = pager.currentPage == page)
+                } else {
+                    ImagePage(vault, item)
                 }
             }
             busy?.let {
-                Spacer(Modifier.height(8.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                Box(
+                    modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(color = Color.White)
+                }
             }
+            // Consumed so the pager fills the screen; the bar floats above it.
+            Box(modifier = Modifier.padding(padding))
         }
     }
 
     val pending = confirming
     if (pending != null) {
-        val item = items[pager.currentPage.coerceIn(0, items.lastIndex)]
-
         fun run(label: String, work: () -> String?) {
             confirming = null
             busy = label
             scope.launch {
                 val error = withContext(Dispatchers.IO) { work() }
                 busy = null
-                problem = error
                 if (error == null) {
                     VaultSession.noteContentsChanged()
                     onClose()
+                } else {
+                    snackbar.showSnackbar(error)
                 }
             }
         }
@@ -149,7 +184,7 @@ fun ViewerScreen(
                     "the phone can read it.",
                 confirmLabel = "Put back",
                 onConfirmed = {
-                    run("Writing…") { VaultExport.putBackOnPhone(context, vault, item).error }
+                    run("Writing") { VaultExport.putBackOnPhone(context, vault, current).error }
                 },
                 onCancel = { confirming = null },
             )
@@ -160,8 +195,8 @@ fun ViewerScreen(
                 text = { Text("This cannot be undone.") },
                 confirmButton = {
                     TextButton(onClick = {
-                        run("Deleting…") {
-                            runCatching { vault.delete(item) }.exceptionOrNull()?.message
+                        run("Deleting") {
+                            runCatching { vault.delete(current) }.exceptionOrNull()?.message
                         }
                     }) { Text("Delete") }
                 },
@@ -176,14 +211,12 @@ private enum class Action { PutBack, Delete }
 @Composable
 private fun ImagePage(vault: Vault, item: VaultItem) {
     val bitmap by produceState<ImageBitmap?>(initialValue = null, item.id) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { decodeFull(vault, item) }.getOrNull()
-        }
+        value = withContext(Dispatchers.IO) { runCatching { decodeFull(vault, item) }.getOrNull() }
     }
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val ready = bitmap
         if (ready == null) {
-            CircularProgressIndicator(strokeWidth = 2.dp, color = Color.White)
+            CircularProgressIndicator(color = Color.White)
         } else {
             Image(
                 bitmap = ready,
@@ -222,9 +255,7 @@ private fun VideoPage(vault: Vault, item: VaultItem, isCurrent: Boolean) {
     val context = LocalContext.current
     val player = remember(item.id) {
         ExoPlayer.Builder(context)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(VaultDataSource.Factory(vault, item)),
-            )
+            .setMediaSourceFactory(DefaultMediaSourceFactory(VaultDataSource.Factory(vault, item)))
             .build()
             .apply {
                 setMediaItem(MediaItem.fromUri(VaultDataSource.uriFor(item)))
@@ -234,12 +265,10 @@ private fun VideoPage(vault: Vault, item: VaultItem, isCurrent: Boolean) {
 
     // Released when the page leaves, otherwise every swipe leaves a player holding a
     // decrypted read open behind it.
-    DisposableEffect(item.id) {
-        onDispose { player.release() }
-    }
+    DisposableEffect(item.id) { onDispose { player.release() } }
 
-    // Swiping away should stop the sound, which otherwise carries on from a page nobody
-    // is looking at.
+    // Swiping away stops the sound, which otherwise carries on from a page nobody is
+    // looking at.
     DisposableEffect(isCurrent) {
         player.playWhenReady = isCurrent
         onDispose { player.playWhenReady = false }
