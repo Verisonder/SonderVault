@@ -43,7 +43,6 @@ fun SettingsScreen(
     vault: Vault,
     activity: FragmentActivity,
     onDuress: () -> Unit,
-    onShare: () -> Unit,
     onBackUp: () -> Unit,
     onRestore: () -> Unit,
     onClose: () -> Unit,
@@ -86,11 +85,6 @@ fun SettingsScreen(
 
             HorizontalDivider()
             SectionLabel("Files")
-            Row(
-                title = "Share some items",
-                detail = "One encrypted file with a code, for sending to someone.",
-                onClick = onShare,
-            )
             Row(
                 title = "Back up everything",
                 detail = "One encrypted file with its own code.",

@@ -40,7 +40,7 @@ private sealed interface Where {
     data object Settings : Where
     data object Duress : Where
     data class DecoyPhotos(val decoy: com.verisonder.sonderlock.vault.Vault) : Where
-    data class Sharing(val everything: Boolean) : Where
+    data class Sharing(val itemIds: List<String>, val isBackup: Boolean) : Where
     data object Restoring : Where
 }
 
@@ -78,6 +78,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 activity = activity,
                 onAdd = { where = Where.Picking },
                 onOpen = { where = Where.Viewing(it) },
+                onShare = { where = Where.Sharing(it, isBackup = false) },
                 onSettings = { where = Where.Settings },
                 onLock = { VaultSession.lock() },
             )
@@ -94,6 +95,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 // one on disk right now: putting an item back removes it mid-view.
                 items = remember(VaultSession.contentsChanged) { vault.items() },
                 startIndex = here.index,
+                onShare = { where = Where.Sharing(it, isBackup = false) },
                 onClose = { where = Where.Grid },
             )
 
@@ -102,8 +104,9 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 vault = vault,
                 activity = activity,
                 onDuress = { where = Where.Duress },
-                onShare = { where = Where.Sharing(everything = false) },
-                onBackUp = { where = Where.Sharing(everything = true) },
+                onBackUp = {
+                    where = Where.Sharing(vault.items().map { it.id }, isBackup = true)
+                },
                 onRestore = { where = Where.Restoring },
                 onClose = { where = Where.Grid },
             )
@@ -122,8 +125,9 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
             is Where.Sharing -> ShareScreen(
                 store = store,
                 vault = vault,
-                everything = here.everything,
-                onDone = { where = if (here.everything) Where.Settings else Where.Grid },
+                itemIds = here.itemIds,
+                isBackup = here.isBackup,
+                onDone = { where = if (here.isBackup) Where.Settings else Where.Grid },
             )
 
             Where.Restoring -> RestoreScreen(vault) { where = Where.Settings }

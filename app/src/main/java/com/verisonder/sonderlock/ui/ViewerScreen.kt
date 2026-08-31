@@ -79,6 +79,7 @@ fun ViewerScreen(
     vault: Vault,
     items: List<VaultItem>,
     startIndex: Int,
+    onShare: (List<String>) -> Unit,
     onClose: () -> Unit,
 ) {
     if (items.isEmpty()) {
@@ -116,6 +117,10 @@ fun ViewerScreen(
                         Icon(Icons.Filled.MoreVert, contentDescription = "More")
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Share") },
+                            onClick = { menuOpen = false; onShare(listOf(current.id)) },
+                        )
                         DropdownMenuItem(
                             text = { Text("Put back on phone") },
                             onClick = { menuOpen = false; confirming = Action.PutBack },
