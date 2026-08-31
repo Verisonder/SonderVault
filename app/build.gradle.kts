@@ -66,6 +66,9 @@ android {
 
     buildFeatures {
         compose = true
+        // Set here rather than through android.defaults.buildfeatures.buildconfig, which
+        // AGP deprecated and will drop in 9.0.
+        buildConfig = true
     }
 
     testOptions {
