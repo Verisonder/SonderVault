@@ -22,6 +22,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.font.FontFamily
+import com.verisonder.sonderlock.media.DocumentPreview
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -159,7 +166,7 @@ fun ViewerScreen(
             val item = items[page]
             val isCurrent = pager.currentPage == page
             if (ItemKind.of(item.mimeType) == ItemKind.FILE) {
-                DocumentPage(item) { chrome = !chrome }
+                DocumentPage(vault, item) { chrome = !chrome }
             } else if (ItemKind.of(item.mimeType) == ItemKind.VIDEO) {
                 VideoPage(
                     vault = vault,
@@ -367,17 +374,112 @@ private fun Modifier.zoomable(
 }
 
 /**
- * Documents have nothing to display, so the page says what the thing is and leaves the
- * actions to do the work. Opening a PDF would mean handing a decrypted copy to another
- * app, which is the one thing the vault exists to avoid — putting it back on the phone
- * first is the honest route, and it is one tap away.
+ * Documents that can be read are read here.
+ *
+ * Text is decoded straight from the container. A PDF is rendered by PdfRenderer through
+ * a proxy file descriptor, so it seeks around inside the encrypted file exactly as the
+ * video player does — the usual approach of decrypting to a temporary file would leave a
+ * plaintext copy of the document in the cache directory for as long as the system felt
+ * like keeping it.
+ *
+ * Anything else has nothing to show, so the page says what it is and leaves the actions
+ * to do the work.
  */
 @Composable
-private fun DocumentPage(item: VaultItem, onTap: () -> Unit) {
+private fun DocumentPage(vault: Vault, item: VaultItem, onTap: () -> Unit) {
+    val tap = Modifier.pointerInput(item.id) { detectTapGestures(onTap = { onTap() }) }
+    when {
+        DocumentPreview.isText(item.mimeType) -> TextDocument(vault, item, tap)
+        DocumentPreview.isPdf(item.mimeType) -> PdfDocument(vault, item, tap)
+        else -> UnreadableDocument(item, tap)
+    }
+}
+
+@Composable
+private fun TextDocument(vault: Vault, item: VaultItem, tap: Modifier) {
+    val body by produceState<String?>(initialValue = null, item.id) {
+        value = withContext(Dispatchers.IO) { DocumentPreview.text(vault, item) ?: "" }
+    }
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black).then(tap)) {
+        val text = body
+        if (text == null) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        } else {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontFamily = FontFamily.Monospace,
+                color = Color.White,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 96.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PdfDocument(vault: Vault, item: VaultItem, tap: Modifier) {
+    val context = LocalContext.current
+    var pdf by remember(item.id) { mutableStateOf<DocumentPreview.Pdf?>(null) }
+    var failed by remember(item.id) { mutableStateOf(false) }
+
+    DisposableEffect(item.id) {
+        val opened = DocumentPreview.openPdf(context, vault, item)
+        pdf = opened
+        failed = opened == null
+        onDispose {
+            opened?.close()
+            pdf = null
+        }
+    }
+
+    val open = pdf
+    when {
+        failed -> UnreadableDocument(item, tap)
+        open == null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Color.White)
+        }
+        else -> LazyColumn(
+            modifier = Modifier.fillMaxSize().background(Color.Black).then(tap),
+            contentPadding = PaddingValues(vertical = 96.dp, horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(open.pageCount) { index ->
+                // Rendered as the page scrolls into view rather than all at once. A
+                // two hundred page document would otherwise be two hundred bitmaps.
+                val page by produceState<ImageBitmap?>(initialValue = null, item.id, index) {
+                    value = withContext(Dispatchers.IO) {
+                        open.render(index, 1080)?.asImageBitmap()
+                    }
+                }
+                val ready = page
+                if (ready == null) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(420.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator(color = Color.White) }
+                } else {
+                    Image(
+                        bitmap = ready,
+                        contentDescription = null,
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnreadableDocument(item: VaultItem, tap: Modifier) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) },
+        modifier = Modifier.fillMaxSize().then(tap),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -405,7 +507,8 @@ private fun DocumentPage(item: VaultItem, onTap: () -> Unit) {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "Put it back on your phone to open it.",
+                "SonderLock cannot show this kind of file. Put it back on your phone to " +
+                    "open it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.7f),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
