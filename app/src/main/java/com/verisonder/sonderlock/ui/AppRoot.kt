@@ -36,13 +36,13 @@ import com.verisonder.sonderlock.vault.VaultStore
  */
 private sealed interface Where {
     data object Grid : Where
-    data object Picking : Where
+    data class Picking(val kind: com.verisonder.sonderlock.media.PickKind) : Where
     data class Viewing(val index: Int) : Where
     data object Settings : Where
     data object Duress : Where
     data class DecoyPhotos(val decoy: com.verisonder.sonderlock.vault.Vault) : Where
     data class Sharing(val itemIds: List<String>, val isBackup: Boolean) : Where
-    data object Restoring : Where
+    data class Restoring(val fromSettings: Boolean) : Where
 }
 
 @Composable
@@ -79,7 +79,9 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
         // crashing. Every screen below the grid goes back to where it was opened from.
         BackHandler(enabled = where != Where.Grid) {
             where = when (where) {
-                is Where.Duress, Where.Restoring -> Where.Settings
+                is Where.Duress -> Where.Settings
+                is Where.Restoring ->
+                    if ((where as Where.Restoring).fromSettings) Where.Settings else Where.Grid
                 is Where.DecoyPhotos -> Where.Settings
                 is Where.Sharing -> if ((where as Where.Sharing).isBackup) Where.Settings else Where.Grid
                 else -> Where.Grid
@@ -91,14 +93,15 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 store = store,
                 vault = vault,
                 activity = activity,
-                onAdd = { where = Where.Picking },
+                onImportMedia = { where = Where.Picking(it) },
+                onOpenShared = { where = Where.Restoring(fromSettings = false) },
                 onOpen = { where = Where.Viewing(it) },
                 onShare = { where = Where.Sharing(it, isBackup = false) },
                 onSettings = { where = Where.Settings },
                 onLock = { VaultSession.lock() },
             )
 
-            Where.Picking -> PickerScreen(vault) {
+            is Where.Picking -> PickerScreen(vault, here.kind) {
                 VaultSession.noteContentsChanged()
                 where = Where.Grid
             }
@@ -123,7 +126,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 onBackUp = {
                     where = Where.Sharing(vault.items().map { it.id }, isBackup = true)
                 },
-                onRestore = { where = Where.Restoring },
+                onRestore = { where = Where.Restoring(fromSettings = true) },
                 onClose = { where = Where.Grid },
             )
 
@@ -136,7 +139,10 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
 
             // The picker again, pointed at the second vault. A decoy is an ordinary vault
             // and filling one is an ordinary import.
-            is Where.DecoyPhotos -> PickerScreen(here.decoy) { where = Where.Settings }
+            is Where.DecoyPhotos -> PickerScreen(
+                here.decoy,
+                com.verisonder.sonderlock.media.PickKind.IMAGES,
+            ) { where = Where.Settings }
 
             is Where.Sharing -> ShareScreen(
                 store = store,
@@ -147,7 +153,9 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 onDone = { where = if (here.isBackup) Where.Settings else Where.Grid },
             )
 
-            Where.Restoring -> RestoreScreen(vault, activity) { where = Where.Settings }
+            is Where.Restoring -> RestoreScreen(vault, activity) {
+                where = if (here.fromSettings) Where.Settings else Where.Grid
+            }
         }
     }
 }

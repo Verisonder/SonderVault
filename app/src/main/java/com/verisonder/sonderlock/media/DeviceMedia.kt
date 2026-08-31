@@ -23,12 +23,23 @@ data class DeviceMediaItem(
     val isVideo: Boolean,
 )
 
+/** What the picker is being opened for. */
+enum class PickKind { IMAGES, VIDEOS }
+
 object DeviceMedia {
 
-    fun query(context: Context, limit: Int = 2000): List<DeviceMediaItem> {
-        val images = queryOne(context, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, false)
-        val videos = queryOne(context, MediaStore.Video.Media.EXTERNAL_CONTENT_URI, true)
-        return (images + videos).sortedByDescending { it.takenAt }.take(limit)
+    fun query(
+        context: Context,
+        kind: PickKind,
+        limit: Int = 2000,
+    ): List<DeviceMediaItem> {
+        val collection = when (kind) {
+            PickKind.IMAGES -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            PickKind.VIDEOS -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        }
+        return queryOne(context, collection, isVideo = kind == PickKind.VIDEOS)
+            .sortedByDescending { it.takenAt }
+            .take(limit)
     }
 
     private fun queryOne(context: Context, collection: Uri, isVideo: Boolean): List<DeviceMediaItem> {

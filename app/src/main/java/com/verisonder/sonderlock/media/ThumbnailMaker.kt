@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import com.verisonder.sonderlock.crypto.VaultFileReader
+import com.verisonder.sonderlock.vault.ItemKind
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import java.io.ByteArrayOutputStream
@@ -27,8 +28,13 @@ object ThumbnailMaker {
     private const val QUALITY = 80
 
     fun make(vault: Vault, item: VaultItem): ByteArray? = runCatching {
-        val bitmap = if (item.mimeType.startsWith("video/")) videoFrame(vault, item)
-        else stillImage(vault, item)
+        // A document has no frame to grab. Attempting one reads the whole file back
+        // through AES to hand a PDF to a bitmap decoder that will refuse it.
+        val bitmap = when (ItemKind.of(item.mimeType)) {
+            ItemKind.VIDEO -> videoFrame(vault, item)
+            ItemKind.IMAGE -> stillImage(vault, item)
+            ItemKind.FILE -> null
+        }
         bitmap?.let { compress(it) }
     }.getOrNull()
 

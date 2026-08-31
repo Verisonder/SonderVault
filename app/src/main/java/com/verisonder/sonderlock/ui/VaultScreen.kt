@@ -34,7 +34,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +71,10 @@ import com.verisonder.sonderlock.security.BiometricPrompts
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import com.verisonder.sonderlock.media.VaultExport
+import com.verisonder.sonderlock.media.DocumentImport
+import com.verisonder.sonderlock.media.PickKind
+import com.verisonder.sonderlock.vault.ItemKind
+import com.verisonder.sonderlock.vault.VaultFilter
 import com.verisonder.sonderlock.vault.VaultSession
 import com.verisonder.sonderlock.vault.VaultStore
 import com.verisonder.sonderlock.R
@@ -90,14 +99,47 @@ fun VaultScreen(
     store: VaultStore,
     vault: Vault,
     activity: FragmentActivity,
-    onAdd: () -> Unit,
+    onImportMedia: (PickKind) -> Unit,
+    onOpenShared: () -> Unit,
     onOpen: (Int) -> Unit,
     onShare: (List<String>) -> Unit,
     onSettings: () -> Unit,
     onLock: () -> Unit,
 ) {
-    val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
-    val selected = remember(items) { mutableListOf<String>().toMutableStateList() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+
+    val all = remember(vault, VaultSession.contentsChanged) { vault.items() }
+    var filter by remember { mutableStateOf(VaultFilter.ALL) }
+    val items = remember(all, filter) { all.filter { filter.accepts(it) } }
+    val selected = remember(all) { mutableListOf<String>().toMutableStateList() }
+    var addOpen by remember { mutableStateOf(false) }
+    var filterOpen by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+
+    val pickDocuments = androidx.activity.compose.rememberLauncherForActivityResult(
+        DocumentImport.PickWritable(),
+    ) { uris ->
+        VaultSession.externalActivityFinished()
+        if (uris.isNotEmpty()) {
+            busy = "Encrypting ${uris.size}"
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    DocumentImport.importAll(context, vault, uris)
+                }
+                busy = null
+                note = when {
+                    outcome.failed > 0 -> "${outcome.failed} could not be read."
+                    outcome.notRemoved > 0 ->
+                        "Added. ${outcome.notRemoved} could not be deleted from where they were."
+                    else -> "Added ${outcome.imported}."
+                }
+                VaultSession.noteContentsChanged()
+            }
+        }
+    }
     val grid = rememberLazyGridState()
     val selecting = selected.isNotEmpty()
 
@@ -108,12 +150,8 @@ fun VaultScreen(
                 !BiometricKey.isEnabled(activity.filesDir),
         )
     }
-    var note by remember { mutableStateOf<String?>(null) }
     var confirmingDelete by remember { mutableStateOf(false) }
     var confirmingPutBack by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf<String?>(null) }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     // Back drops the selection first. Leaving the vault while thirty photos are ticked
     // is never what the gesture meant.
@@ -166,8 +204,32 @@ fun VaultScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("SonderLock") },
+                    title = { Text(if (filter == VaultFilter.ALL) "SonderLock" else filter.label) },
                     actions = {
+                        Box {
+                            IconButton(onClick = { filterOpen = true }) {
+                                Icon(
+                                    painterResource(R.drawable.ic_filter),
+                                    contentDescription = "Filter",
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = filterOpen,
+                                onDismissRequest = { filterOpen = false },
+                            ) {
+                                VaultFilter.entries.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option.label) },
+                                        onClick = { filter = option; filterOpen = false },
+                                        trailingIcon = {
+                                            if (option == filter) {
+                                                Icon(Icons.Filled.Check, contentDescription = null)
+                                            }
+                                        },
+                                    )
+                                }
+                            }
+                        }
                         IconButton(onClick = onSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
@@ -179,8 +241,8 @@ fun VaultScreen(
             }
         },
         floatingActionButton = {
-            if (items.isNotEmpty() && !selecting) {
-                FloatingActionButton(onClick = onAdd) {
+            if (all.isNotEmpty() && !selecting) {
+                FloatingActionButton(onClick = { addOpen = true }) {
                     Icon(Icons.Filled.Add, contentDescription = "Add")
                 }
             }
@@ -218,18 +280,25 @@ fun VaultScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("Nothing in here yet", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        if (all.isEmpty()) "Nothing in here yet" else "No ${filter.label.lowercase()}",
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Photos and videos you add are encrypted and removed from your phone.",
+                        if (all.isEmpty()) {
+                            "Anything you add is encrypted and removed from your phone."
+                        } else {
+                            "There is nothing here under this filter."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(24.dp))
                     ExtendedFloatingActionButton(
-                        onClick = onAdd,
+                        onClick = { addOpen = true },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                        text = { Text("Add photos") },
+                        text = { Text("Add") },
                     )
                 }
             } else {
@@ -257,6 +326,29 @@ fun VaultScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (addOpen) {
+        ModalBottomSheet(onDismissRequest = { addOpen = false }, sheetState = sheetState) {
+            AddOption("Photos", "From your gallery") {
+                addOpen = false
+                onImportMedia(PickKind.IMAGES)
+            }
+            AddOption("Videos", "From your gallery") {
+                addOpen = false
+                onImportMedia(PickKind.VIDEOS)
+            }
+            AddOption("Files", "Documents, PDFs, anything else") {
+                addOpen = false
+                VaultSession.expectingExternalActivity = true
+                pickDocuments.launch(arrayOf("*/*"))
+            }
+            AddOption("A shared file", "Something sent to you, or a backup") {
+                addOpen = false
+                onOpenShared()
+            }
+            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -336,6 +428,7 @@ private fun Tile(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val kind = ItemKind.of(item.mimeType)
     val thumbnail by rememberVaultThumbnail(vault, item)
     Box(
         modifier = Modifier
@@ -344,6 +437,30 @@ private fun Tile(
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
+        if (kind == ItemKind.FILE) {
+            // A document has no picture to show, so it shows what it is instead. A grey
+            // square with nothing on it is indistinguishable from one that failed.
+            Column(
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_file),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    item.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
         thumbnail?.let {
             Image(
                 bitmap = it,
@@ -371,7 +488,7 @@ private fun Tile(
                 )
             }
         }
-        if (item.mimeType.startsWith("video/")) {
+        if (kind == ItemKind.VIDEO) {
             Text(
                 "\u25B6",
                 style = MaterialTheme.typography.labelMedium,
@@ -411,4 +528,13 @@ private fun OfferCard(
             }
         }
     }
+}
+
+@Composable
+private fun AddOption(title: String, detail: String, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(detail) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }

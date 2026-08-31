@@ -54,6 +54,7 @@ import com.verisonder.sonderlock.media.DeviceMedia
 import com.verisonder.sonderlock.media.DeviceMediaItem
 import com.verisonder.sonderlock.media.MediaAccess
 import com.verisonder.sonderlock.media.MediaImporter
+import com.verisonder.sonderlock.media.PickKind
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultSession
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +70,7 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PickerScreen(vault: Vault, onDone: () -> Unit) {
+fun PickerScreen(vault: Vault, kind: PickKind, onDone: () -> Unit) {
     val context = LocalContext.current
     val activity = context as android.app.Activity
     // Keyed on the foreground counter so returning from the app's settings page is
@@ -110,7 +111,7 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
             // that silently does nothing is worse than one that explains itself.
             if (!asked) askForAccess.launch(MediaAccess.readPermissions())
         } else if (!needsManagement && media == null) {
-            media = withContext(Dispatchers.IO) { DeviceMedia.query(context) }
+            media = withContext(Dispatchers.IO) { DeviceMedia.query(context, kind) }
         }
     }
 
@@ -139,7 +140,13 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(if (selected.isEmpty()) "Add to vault" else "${selected.size} selected")
+                    Text(
+                        when {
+                            selected.isNotEmpty() -> "${selected.size} selected"
+                            kind == PickKind.VIDEOS -> "Add videos"
+                            else -> "Add photos"
+                        }
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onDone, enabled = working == null) {
@@ -257,8 +264,11 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                 media == null -> Centred { CircularProgressIndicator() }
 
                 media!!.isEmpty() -> Centred {
-                    Text("No photos or videos on this phone",
-                        style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (kind == PickKind.VIDEOS) "No videos on this phone"
+                        else "No photos on this phone",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                 }
 
                 else -> {

@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -72,6 +75,7 @@ import androidx.media3.ui.PlayerView
 import com.verisonder.sonderlock.R
 import com.verisonder.sonderlock.media.VaultDataSource
 import com.verisonder.sonderlock.media.VaultExport
+import com.verisonder.sonderlock.vault.ItemKind
 import com.verisonder.sonderlock.vault.Vault
 import com.verisonder.sonderlock.vault.VaultItem
 import com.verisonder.sonderlock.vault.VaultSession
@@ -154,7 +158,9 @@ fun ViewerScreen(
         ) { page ->
             val item = items[page]
             val isCurrent = pager.currentPage == page
-            if (item.mimeType.startsWith("video/")) {
+            if (ItemKind.of(item.mimeType) == ItemKind.FILE) {
+                DocumentPage(item) { chrome = !chrome }
+            } else if (ItemKind.of(item.mimeType) == ItemKind.VIDEO) {
                 VideoPage(
                     vault = vault,
                     item = item,
@@ -358,6 +364,54 @@ private fun Modifier.zoomable(
             translationX = offset.x
             translationY = offset.y
         }
+}
+
+/**
+ * Documents have nothing to display, so the page says what the thing is and leaves the
+ * actions to do the work. Opening a PDF would mean handing a decrypted copy to another
+ * app, which is the one thing the vault exists to avoid — putting it back on the phone
+ * first is the honest route, and it is one tap away.
+ */
+@Composable
+private fun DocumentPage(item: VaultItem, onTap: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { detectTapGestures(onTap = { onTap() }) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp),
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_file),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(64.dp),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                item.name,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "${item.size / 1024} KB",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White.copy(alpha = 0.7f),
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Put it back on your phone to open it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.7f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+        }
+    }
 }
 
 @Composable
