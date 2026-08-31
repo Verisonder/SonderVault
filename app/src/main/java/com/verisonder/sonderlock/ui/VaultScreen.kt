@@ -103,7 +103,9 @@ fun VaultScreen(
 
     var fingerprintOffer by remember {
         mutableStateOf(
-            BiometricKey.isAvailable(activity) && !BiometricKey.isEnabled(activity.filesDir),
+            !vault.isDecoy &&
+                BiometricKey.isAvailable(activity) &&
+                !BiometricKey.isEnabled(activity.filesDir),
         )
     }
     var note by remember { mutableStateOf<String?>(null) }
@@ -191,11 +193,7 @@ fun VaultScreen(
                     detail = "Your password still works.",
                     action = "Turn on",
                     onAction = {
-                        BiometricPrompts.enable(
-                            activity,
-                            activity.filesDir,
-                            vault.masterKeyCopy(),
-                        ) { ok, message ->
+                        BiometricPrompts.enable(activity, activity.filesDir, vault) { ok, message ->
                             fingerprintOffer = !ok
                             note = if (ok) "Fingerprint unlock is on." else message
                         }

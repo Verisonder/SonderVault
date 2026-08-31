@@ -21,6 +21,15 @@ import java.io.InputStream
 class Vault internal constructor(
     val directory: File,
     private val masterKey: ByteArray,
+    /**
+     * Whether this is the decoy.
+     *
+     * Carried on the vault itself rather than worked out by whoever is holding it. It was
+     * previously the caller's opinion, and a screen that got it wrong rebuilt the slot
+     * file around the wrong key and made a vault permanently unopenable. Anything that
+     * can destroy data asks the vault, not the screen.
+     */
+    val isDecoy: Boolean,
 ) : Closeable {
 
     private val indexKey = Crypto.hkdf(masterKey, INFO_INDEX)

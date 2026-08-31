@@ -2,6 +2,8 @@ package com.verisonder.sonderlock.security
 
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
+import com.verisonder.sonderlock.crypto.Crypto
+import com.verisonder.sonderlock.vault.Vault
 import java.io.File
 import java.util.concurrent.Executor
 
@@ -41,14 +43,26 @@ object BiometricPrompts {
         .setConfirmationRequired(false)
         .build()
 
+    /**
+     * @param vault must be the real one. A fingerprint that opens the decoy is a
+     *   fingerprint that can be pressed against the phone by someone holding your hand,
+     *   and it would also make the next unlock land in the decoy without saying so. This
+     *   refuses rather than trusting the screen to have checked.
+     */
     fun enable(
         activity: FragmentActivity,
         baseDir: File,
-        masterKey: ByteArray,
+        vault: Vault,
         onResult: (Boolean, String?) -> Unit,
     ) {
+        if (vault.isDecoy) {
+            onResult(false, "Fingerprint unlock is not available here.")
+            return
+        }
+        val masterKey = vault.masterKeyCopy()
         val cipher = runCatching { BiometricKey.cipherForEnabling() }.getOrNull()
         if (cipher == null) {
+            Crypto.wipe(masterKey)
             onResult(false, "This device would not create the key")
             return
         }
@@ -62,8 +76,8 @@ object BiometricPrompts {
                         onResult(false, "No cipher came back from the prompt")
                     } else {
                         runCatching { BiometricKey.store(baseDir, ready, masterKey) }
-                            .onSuccess { onResult(true, null) }
-                            .onFailure { onResult(false, it.message) }
+                            .onSuccess { Crypto.wipe(masterKey); onResult(true, null) }
+                            .onFailure { Crypto.wipe(masterKey); onResult(false, it.message) }
                     }
                 },
                 onFailure = { message -> onResult(false, message) },

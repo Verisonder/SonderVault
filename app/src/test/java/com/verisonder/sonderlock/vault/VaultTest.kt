@@ -303,6 +303,77 @@ class VaultTest {
         assertNotEquals(realDir, other.real.directory.name)
     }
 
+    // ------------------------------------------------- the mistake that lost a vault
+
+    @Test
+    fun `a vault knows whether it is the decoy`() {
+        val configured = store().configure("main".toByteArray(), "duress".toByteArray(), false)
+        assertFalse(configured.real.isDecoy)
+        assertTrue(requireNotNull(configured.decoy).isDecoy)
+    }
+
+    @Test
+    fun `unlocking reports the decoy as the decoy`() {
+        store().configure("main".toByteArray(), "duress".toByteArray(), false)
+        assertTrue(store().unlock("duress".toByteArray())!!.vault.isDecoy)
+        assertFalse(store().unlock("main".toByteArray())!!.vault.isDecoy)
+    }
+
+    @Test
+    fun `setting a duress password from inside the decoy is refused`() {
+        val configured = store().configure("main".toByteArray(), "duress".toByteArray(), false)
+        val decoy = requireNotNull(configured.decoy)
+        add(configured.real, "private.jpg", 2000, 1)
+
+        // Allowing this rebuilds the slot file around the decoy's key and the real
+        // vault's key is never written anywhere again. It happened once, to a real vault.
+        var refused = false
+        try {
+            store().setDuress("duress".toByteArray(), decoy, "another".toByteArray(), false)
+        } catch (e: IllegalArgumentException) {
+            refused = true
+        }
+        assertTrue("must refuse to rebuild slots against a decoy", refused)
+
+        // and the real vault still opens, with its contents
+        val after = store().unlock("main".toByteArray())
+        assertNotNull(after)
+        assertFalse(after!!.vault.isDecoy)
+        assertEquals(listOf("private.jpg"), after.vault.items().map { it.name })
+    }
+
+    @Test
+    fun `the real password still opens the real vault after duress is changed`() {
+        val configured = store().configure("main".toByteArray(), "duress".toByteArray(), false)
+        add(configured.real, "private.jpg", 2000, 2)
+        add(requireNotNull(configured.decoy), "ordinary.jpg", 500, 3)
+
+        assertTrue(store().changeDuress("duress".toByteArray(), "newduress".toByteArray(), false))
+
+        val real = store().unlock("main".toByteArray())
+        assertNotNull("the main password must survive a duress change", real)
+        assertEquals(listOf("private.jpg"), real!!.vault.items().map { it.name })
+
+        val decoy = store().unlock("newduress".toByteArray())
+        assertNotNull(decoy)
+        assertTrue(decoy!!.vault.isDecoy)
+        assertEquals(listOf("ordinary.jpg"), decoy.vault.items().map { it.name })
+        assertNull("the old duress password must stop working",
+            store().unlock("duress".toByteArray()))
+    }
+
+    @Test
+    fun `changing duress with the main password is refused`() {
+        val configured = store().configure("main".toByteArray(), "duress".toByteArray(), false)
+        add(configured.real, "private.jpg", 2000, 4)
+
+        assertFalse(store().changeDuress("main".toByteArray(), "newduress".toByteArray(), false))
+
+        // nothing was rewritten
+        assertNotNull(store().unlock("main".toByteArray()))
+        assertNotNull(store().unlock("duress".toByteArray()))
+    }
+
     @Test
     fun `hkdf gives a different directory for a different key`() {
         val one = Crypto.hkdf(ByteArray(32) { 1 }, VaultStore.INFO_DIRECTORY, 10)

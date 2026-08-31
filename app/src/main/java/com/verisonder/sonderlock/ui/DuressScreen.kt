@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,6 +67,15 @@ fun DuressScreen(
     onClose: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+
+    // Nothing here is safe to run against the decoy. Setting a duress password rebuilds
+    // the slot file around the vault it is given, so run from inside the decoy it writes
+    // the decoy's key into the real slot and the real vault becomes unopenable. The store
+    // refuses too; this is so the screen is never even shown.
+    if (vault.isDecoy) {
+        LaunchedEffect(Unit) { onClose() }
+        return
+    }
     // Set already means the current duress password identifies its own slot, so that is
     // the one to ask for. The main password is only needed to create the first one.
     val alreadySet = remember { store.hasSecondVault(vault) }

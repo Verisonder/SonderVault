@@ -57,8 +57,8 @@ class VaultStore(
         writeSlots(KeySlots.build(entries, argonMemKiB, argonIterations, argonParallelism))
 
         return Configured(
-            real = openVault(realKey),
-            decoy = decoyKey?.let { openVault(it) },
+            real = openVault(realKey, isDecoy = false),
+            decoy = decoyKey?.let { openVault(it, isDecoy = true) },
         )
     }
 
@@ -71,7 +71,7 @@ class VaultStore(
      * no gesture for "open the other one".
      */
     fun openWithMasterKey(masterKey: ByteArray): Opened =
-        Opened(openVault(masterKey), isDecoy = false, wiped = false)
+        Opened(openVault(masterKey, isDecoy = false), isDecoy = false, wiped = false)
 
     /**
      * Add, change or remove the duress password on a vault that already exists.
@@ -91,6 +91,15 @@ class VaultStore(
         duress: ByteArray?,
         duressWipes: Boolean,
     ): Vault? {
+        // Refused outright when the vault handed in is not the real one.
+        //
+        // This rebuilds the slot file around realVault's key. Run against a decoy, it
+        // writes the decoy's key into the real slot and the real vault's key is never
+        // written anywhere — every photo in it becomes unopenable, immediately and
+        // permanently. It happened. The screen that calls this is supposed to check
+        // first; this is here because a screen forgetting a check must not be able to
+        // destroy a vault.
+        require(!realVault.isDecoy) { "not the real vault" }
         require(confirms(mainPassword, realVault)) { "that is not the main password" }
 
         val realKey = realVault.masterKeyCopy()
@@ -104,7 +113,7 @@ class VaultStore(
         writeSlots(KeySlots.build(entries, argonMemKiB, argonIterations, argonParallelism))
         Crypto.wipe(realKey)
 
-        return decoyKey?.let { openVault(it) }
+        return decoyKey?.let { openVault(it, isDecoy = true) }
     }
 
     /**
@@ -143,7 +152,7 @@ class VaultStore(
             Crypto.wipe(unlocked.masterKey)
             return false
         }
-        val decoy = openVault(unlocked.masterKey)
+        val decoy = openVault(unlocked.masterKey, isDecoy = true)
         Crypto.wipe(unlocked.masterKey)
         writeSlots(KeySlots.clearSlot(blob, unlocked.slotIndex))
         // The decoy's own photos go with it. Leaving a directory nothing can open is a
@@ -164,7 +173,7 @@ class VaultStore(
     fun unlock(password: ByteArray): Opened? {
         if (!isConfigured) return null
         val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return null
-        val vault = openVault(unlocked.masterKey)
+        val vault = openVault(unlocked.masterKey, isDecoy = unlocked.isDecoy)
         var wiped = false
         if (unlocked.wipe) {
             destroyEverythingExcept(vault.directory)
@@ -194,11 +203,11 @@ class VaultStore(
      * unattributable: nothing on disk says which of them is the real one, and a directory
      * whose key you do not hold cannot even be identified as yours.
      */
-    private fun openVault(masterKey: ByteArray): Vault {
+    private fun openVault(masterKey: ByteArray, isDecoy: Boolean): Vault {
         val name = Crypto.hkdf(masterKey, INFO_DIRECTORY, 10)
             .joinToString("") { "%02x".format(it) }
         val directory = File(vaultsDir, name).apply { mkdirs() }
-        return Vault(directory, masterKey)
+        return Vault(directory, masterKey, isDecoy)
     }
 
     /**

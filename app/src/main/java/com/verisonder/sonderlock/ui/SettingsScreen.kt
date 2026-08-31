@@ -54,7 +54,10 @@ fun SettingsScreen(
 ) {
     val items = remember(vault, VaultSession.contentsChanged) { vault.items() }
     val used = remember(VaultSession.contentsChanged) { store.totalSizeOnDisk() }
-    val fingerprintPossible = remember { BiometricKey.isAvailable(activity) }
+    // Absent inside the decoy for the same reason as the duress row: turning it on there
+    // would wrap the decoy's key, and every later unlock would land in the decoy while
+    // claiming to be the real vault. That is how a vault got lost.
+    val fingerprintPossible = remember { !vault.isDecoy && BiometricKey.isAvailable(activity) }
     var fingerprintOn by remember(VaultSession.foregroundCount) {
         mutableStateOf(BiometricKey.isEnabled(activity.filesDir))
     }
@@ -83,14 +86,14 @@ fun SettingsScreen(
             // vault open can scroll settings too, and a greyed-out row named "Duress
             // password" tells them exactly what they are looking at and that there is
             // more to find.
-            if (!VaultSession.isDecoy) {
+            if (!vault.isDecoy) {
                 Row(
                     title = "Duress password",
                     detail = "Opens a different set of photos.",
                     onClick = onDuress,
                 )
             }
-            SwitchRow(
+            if (fingerprintPossible || BiometricKey.isEnabled(activity.filesDir)) SwitchRow(
                 title = "Fingerprint unlock",
                 detail = when {
                     !fingerprintPossible -> "No fingerprint is set up on this phone."
@@ -106,11 +109,7 @@ fun SettingsScreen(
                         BiometricKey.disable(activity.filesDir)
                         fingerprintOn = false
                     } else {
-                        BiometricPrompts.enable(
-                            activity,
-                            activity.filesDir,
-                            vault.masterKeyCopy(),
-                        ) { ok, message ->
+                        BiometricPrompts.enable(activity, activity.filesDir, vault) { ok, message ->
                             fingerprintOn = ok
                             if (!ok) note = message
                         }

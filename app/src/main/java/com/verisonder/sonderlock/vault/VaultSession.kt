@@ -20,7 +20,9 @@ object VaultSession {
 
     val opened: VaultStore.Opened? get() = state.value
     val isOpen: Boolean get() = state.value != null
-    val isDecoy: Boolean get() = state.value?.isDecoy == true
+    // Read off the vault, not off how it happened to be opened. A biometric unlock
+    // used to report the real vault whatever it had actually opened.
+    val isDecoy: Boolean get() = state.value?.vault?.isDecoy == true
 
     /**
      * Set while an activity the app itself started is in front — the document picker, the
