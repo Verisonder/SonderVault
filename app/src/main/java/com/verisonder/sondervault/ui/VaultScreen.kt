@@ -74,6 +74,7 @@ import com.verisonder.sondervault.security.BiometricPrompts
 import com.verisonder.sondervault.vault.Vault
 import com.verisonder.sondervault.vault.VaultItem
 import com.verisonder.sondervault.media.VaultExport
+import com.verisonder.sondervault.Preferences
 import com.verisonder.sondervault.media.DocumentImport
 import com.verisonder.sondervault.media.PickKind
 import com.verisonder.sondervault.vault.ItemKind
@@ -150,7 +151,10 @@ fun VaultScreen(
         mutableStateOf(
             !vault.isDecoy &&
                 BiometricKey.isAvailable(activity) &&
-                !BiometricKey.isEnabled(activity.filesDir),
+                !BiometricKey.isEnabled(activity.filesDir) &&
+                // Turning fingerprint off and then being asked to turn it on again every
+                // single time is the app arguing with a decision already made.
+                !Preferences.fingerprintOfferDeclined(context),
         )
     }
     var confirmingDelete by remember { mutableStateOf(false) }
@@ -264,6 +268,10 @@ fun VaultScreen(
                         }
                     },
                     onDismiss = { fingerprintOffer = false },
+                    onNever = {
+                        Preferences.declineFingerprintOffer(context)
+                        fingerprintOffer = false
+                    },
                 )
             }
 
@@ -511,6 +519,7 @@ private fun OfferCard(
     action: String,
     onAction: () -> Unit,
     onDismiss: () -> Unit,
+    onNever: (() -> Unit)? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -530,6 +539,7 @@ private fun OfferCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = onAction) { Text(action) }
                 TextButton(onClick = onDismiss) { Text("Not now") }
+                onNever?.let { TextButton(onClick = it) { Text("Never") } }
             }
         }
     }
