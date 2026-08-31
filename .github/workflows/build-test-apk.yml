@@ -71,7 +71,7 @@ jobs:
             echo "::error::No APK was produced."
             exit 1
           fi
-          NAMED="SonderLock-$SLUG-${GITHUB_SHA:0:7}.apk"
+          NAMED="SonderVault-$SLUG-${GITHUB_SHA:0:7}.apk"
           cp "$APK" "$NAMED"
 
           # One release per branch rather than a pile: the tag is deleted and recreated
@@ -79,7 +79,7 @@ jobs:
           gh release delete "$TAG" --repo Verisonder/vs-artifacts --yes --cleanup-tag || true
           gh release create "$TAG" "$NAMED" \
             --repo Verisonder/vs-artifacts \
-            --title "SonderLock $SLUG" \
+            --title "SonderVault $SLUG" \
             --notes "Branch \`$GITHUB_REF_NAME\` at \`${GITHUB_SHA:0:7}\`, built $(date -u +%F\ %T) UTC." \
             --target main
           echo "Published $NAMED to vs-artifacts as $TAG"

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.verisonder.sonderlock"
+    namespace = "com.verisonder.sondervault"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.verisonder.sonderlock"
+        applicationId = "com.verisonder.sondervault"
         // 28 rather than 26. Below 28 androidx.biometric falls back to its own dialog,
         // which expects AppCompat styling this app does not carry, and
         // StrongBoxUnavailableException does not exist to catch. Android 9 is an

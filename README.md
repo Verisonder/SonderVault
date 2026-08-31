@@ -1,9 +1,9 @@
-# SonderLock
+# SonderVault
 
 A private space on your phone for photos, videos and files. Everything is encrypted on
 the device and stays there.
 
-- **App ID:** `com.verisonder.sonderlock`
+- **App ID:** `com.verisonder.sondervault`
 - **Licence:** GPL-3.0-only
 - **Status:** early. The crypto layer exists and is tested; there is no app around it yet.
 
@@ -26,7 +26,7 @@ the device and stays there.
 `FLAG_SECURE` stops screenshots, screen recording and the recents preview. It does not
 stop a second phone pointed at the screen, and it does not stop a rooted device.
 
-Bundles are described as opening in SonderLock. That is the file format, not enforcement.
+Bundles are described as opening in SonderVault. That is the file format, not enforcement.
 The source is public and the format is documented, so anyone with the code and a copy of
 this repository can decrypt a bundle. The encryption is what protects it; needing the app
 is convenience.
@@ -67,7 +67,7 @@ python3 emit_test.py                       # regenerate the Kotlin test from the
 ## Repository layout
 
 ```
-app/src/main/java/com/verisonder/sonderlock/crypto/
+app/src/main/java/com/verisonder/sondervault/crypto/
     Crypto.kt           Argon2id, HKDF, GCM, CTR, HMAC, wiping
     KeySlots.kt         the wrapped master keys, fixed size, indistinguishable
     VaultFile.kt        the .slf container: streaming writer, seekable reader

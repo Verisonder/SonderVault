@@ -1,4 +1,4 @@
-# SonderLock — on-disk formats
+# SonderVault — on-disk formats
 
 Version 1. Every layout here is exercised by `tools/test_reference.py` and pinned by
 `app/src/test/resources/vectors.json`.
@@ -112,6 +112,12 @@ encKey = HKDF-SHA256-Expand(fileKey, "sonderlock:enc:v1", 32)
 macKey = HKDF-SHA256-Expand(fileKey, "sonderlock:mac:v1", 32)
 ```
 
+**These strings keep the app's former name and always will.** They are domain separation
+labels baked into every container and every bundle already written; changing them would
+derive different keys and make existing files unopenable. The same goes for
+`sonderlock:index:v1`, `sonderlock:thumb:v1`, `sonderlock:dir:v1`, and the `SLBUNDL1`
+bundle magic. What is inside a format is an identifier, not branding.
+
 Extract is skipped because the input is already a uniform 256-bit key.
 
 Per-block MAC:
@@ -148,7 +154,7 @@ block 0 from playing.
 
 ---
 
-## 4. `.sonderlock` bundles
+## 4. `.sondervault` bundles
 
 Sharing and backup use one format. A backup is a share of everything.
 
@@ -190,7 +196,7 @@ file at 4 GB.
 
 ### The honest part
 
-"Only opens in SonderLock" is the file format, not enforcement. The source is public, so
+"Only opens in SonderVault" is the file format, not enforcement. The source is public, so
 anyone with the code and a copy of the repository can decrypt a bundle. The encryption is
 what protects it; needing the app is convenience. This belongs in the README rather than
 a claim to be stronger than it is.
