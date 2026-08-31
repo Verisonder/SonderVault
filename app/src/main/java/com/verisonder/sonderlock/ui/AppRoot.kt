@@ -147,7 +147,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
                 onDone = { where = if (here.isBackup) Where.Settings else Where.Grid },
             )
 
-            Where.Restoring -> RestoreScreen(vault) { where = Where.Settings }
+            Where.Restoring -> RestoreScreen(vault, activity) { where = Where.Settings }
         }
     }
 }

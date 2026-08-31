@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Four corner brackets: the viewfinder shape every scanner uses. No android:tint, for
+    the same reason as the other drawable here — a theme attribute in a drawable fails
+    resource linking against a theme that does not carry it, and it fails in one build
+    variant while the other stays green.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3,3h7v2H5v5H3V3zM14,3h7v7h-2V5h-5V3zM3,14h2v5h5v2H3V14zM19,14h2v7h-7v-2h5V14z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M7,7h4v4H7V7zM13,7h4v4h-4V7zM7,13h4v4H7V13zM13,13h4v4h-4V13z"
+        android:fillAlpha="0.45" />
+</vector>

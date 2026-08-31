@@ -22,6 +22,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,8 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import com.verisonder.sonderlock.bundle.BundleReader
 import com.verisonder.sonderlock.vault.Vault
+import androidx.compose.ui.res.painterResource
+import com.verisonder.sonderlock.R
 import com.verisonder.sonderlock.vault.VaultSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,7 +55,7 @@ import java.io.File
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RestoreScreen(vault: Vault, onDone: () -> Unit) {
+fun RestoreScreen(vault: Vault, activity: FragmentActivity, onDone: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -59,6 +64,7 @@ fun RestoreScreen(vault: Vault, onDone: () -> Unit) {
     var working by remember { mutableStateOf<String?>(null) }
     var problem by remember { mutableStateOf<String?>(null) }
     var imported by remember { mutableStateOf<Int?>(null) }
+    var scanning by remember { mutableStateOf(false) }
 
     val pick = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
@@ -171,6 +177,14 @@ fun RestoreScreen(vault: Vault, onDone: () -> Unit) {
                         supportingText = problem?.let { { Text(it) } },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                         keyboardActions = KeyboardActions(onGo = { open() }),
+                        trailingIcon = {
+                            IconButton(onClick = { scanning = true }) {
+                                Icon(
+                                    painterResource(R.drawable.ic_scan),
+                                    contentDescription = "Scan the code",
+                                )
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.height(16.dp))
@@ -193,6 +207,24 @@ fun RestoreScreen(vault: Vault, onDone: () -> Unit) {
                     }) { Text("Choose a file") }
                 }
             }
+        }
+    }
+
+    if (scanning) {
+        Dialog(
+            onDismissRequest = { scanning = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            QrScanner(
+                lifecycleOwner = activity,
+                onCode = { text ->
+                    scanning = false
+                    typed = text
+                    problem = null
+                    open()
+                },
+                onCancel = { scanning = false },
+            )
         }
     }
 }

@@ -35,6 +35,15 @@
     -->
     <uses-permission android:name="android.permission.MANAGE_MEDIA" />
 
+    <!--
+        For reading a shared file's code off a QR, and nothing else. Asked for the first
+        time the scanner is opened, never at launch, and the code can always be typed
+        instead. There is no INTERNET permission, so a camera frame has nowhere to go
+        even if something went wrong with it.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:name=".SonderLockApp"
         android:allowBackup="false"
