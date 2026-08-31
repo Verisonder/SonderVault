@@ -127,14 +127,6 @@ fun ViewerScreen(
     val current = items[pager.currentPage.coerceIn(0, items.lastIndex)]
     val currentIsVideo = current.mimeType.startsWith("video/")
 
-    // On a video the bars stay put.
-    //
-    // PlayerView handles its own touches, so a tap never reaches this side — that is why
-    // they would not hide. Driving them from the player's controller instead was the next
-    // attempt and it went the other way: the controller reports itself hidden and the
-    // actions disappeared entirely. Two wrong guesses is enough. Photos keep tap to hide,
-    // video keeps its actions visible above the scrubber, and both are predictable.
-    val barsVisible = chrome || currentIsVideo
 
     // Zooming out of one photo should not leave the next one stuck.
     LaunchedEffect(pager.currentPage) { zoomed = false }
@@ -162,7 +154,12 @@ fun ViewerScreen(
             val item = items[page]
             val isCurrent = pager.currentPage == page
             if (item.mimeType.startsWith("video/")) {
-                VideoPage(vault = vault, item = item, isCurrent = isCurrent)
+                VideoPage(
+                    vault = vault,
+                    item = item,
+                    isCurrent = isCurrent,
+                    onTap = { chrome = !chrome },
+                )
             } else {
                 ImagePage(
                     vault = vault,
@@ -174,7 +171,7 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(
-            visible = barsVisible,
+            visible = chrome,
             enter = fadeIn() + slideInVertically { -it },
             exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier.align(Alignment.TopCenter),
@@ -211,7 +208,7 @@ fun ViewerScreen(
         }
 
         AnimatedVisibility(
-            visible = barsVisible,
+            visible = chrome,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -414,16 +411,27 @@ private fun decodeFull(vault: Vault, item: VaultItem): ImageBitmap? {
 }
 
 /**
- * Video pages let the player own every touch.
+ * Video pages watch the tap rather than taking it.
  *
- * PlayerView handles its own, so neither a tap nor a pinch reaches the Compose side. The
- * controller shows and hides on tap the way it always does; the app's own bars are left
- * alone above it. Pinch to zoom therefore does not work on video, which is worth saying
- * plainly rather than pretending otherwise.
+ * PlayerView handles its own touches, so a Compose gesture layered on top never fires —
+ * which is why the bars first would not hide, and then, when they were driven off the
+ * controller's own visibility instead, disappeared entirely.
+ *
+ * An OnTouchListener runs before the view's own onTouchEvent and can decline to consume,
+ * so the tap is seen here and still reaches the player. One tap therefore hides the
+ * controller and the app's bars together, because both are reacting to the same touch.
+ *
+ * Pinch to zoom still does not work on video: the player takes those events for itself,
+ * and only replacing its whole control surface would change that.
  */
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-private fun VideoPage(vault: Vault, item: VaultItem, isCurrent: Boolean) {
+private fun VideoPage(
+    vault: Vault,
+    item: VaultItem,
+    isCurrent: Boolean,
+    onTap: () -> Unit,
+) {
     val context = LocalContext.current
     val player = remember(item.id) {
         ExoPlayer.Builder(context)
@@ -452,7 +460,28 @@ private fun VideoPage(vault: Vault, item: VaultItem, isCurrent: Boolean) {
                 useController = true
                 controllerAutoShow = true
                 controllerHideOnTouch = true
+                // Never on a timer, so the only thing that moves the controller is a
+                // tap — which is the same thing that moves the app's bars. A timeout
+                // would let the two drift apart.
+                controllerShowTimeoutMs = 0
                 setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+
+                val taps = android.view.GestureDetector(
+                    context,
+                    object : android.view.GestureDetector.SimpleOnGestureListener() {
+                        override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                            onTap()
+                            return false
+                        }
+                    },
+                )
+                // Returning false is the whole point: the player still gets the event and
+                // toggles its own controller. Dragging the scrubber never arrives here,
+                // because the time bar consumes it before this view sees it.
+                setOnTouchListener { _, event ->
+                    taps.onTouchEvent(event)
+                    false
+                }
             }
         },
         modifier = Modifier.fillMaxSize(),
