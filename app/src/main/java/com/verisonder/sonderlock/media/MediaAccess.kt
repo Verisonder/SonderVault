@@ -1,12 +1,14 @@
 package com.verisonder.sonderlock.media
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.MediaStore
 import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /**
@@ -35,6 +37,39 @@ object MediaAccess {
     fun hasReadAccess(context: Context): Boolean = readPermissions().all {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
+
+    /**
+     * Android 14 offers "Select photos" beside "Allow all", which grants access to a
+     * handful of chosen items instead of the library.
+     *
+     * That is not enough here and cannot be made to be. The app has to show the whole
+     * library to pick from, and it has to delete the originals afterwards — neither works
+     * on a hand-picked subset. Worth detecting rather than treating as a plain refusal,
+     * because the user did say yes and telling them they said no is infuriating.
+     */
+    fun hasPartialAccess(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return false
+        if (hasReadAccess(context)) return false
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Whether asking again would show anything.
+     *
+     * Android stops showing the dialog after two refusals, so the request silently does
+     * nothing and the button looks broken. Past that point the only route is the app's
+     * own settings page.
+     */
+    fun canAskAgain(activity: Activity): Boolean =
+        readPermissions().any { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
+
+    fun appSettings(context: Context): Intent =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = android.net.Uri.parse("package:${context.packageName}")
+        }
 
     fun mediaManagementPossible(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 

@@ -13,6 +13,13 @@
     -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!--
+        Declared so Android 14 and above hands back a clear partial grant rather than
+        behaving unpredictably. The app cannot work on a partial grant — it has to show
+        the whole library and delete originals — so it detects one and says so instead of
+        asking again in a loop.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />

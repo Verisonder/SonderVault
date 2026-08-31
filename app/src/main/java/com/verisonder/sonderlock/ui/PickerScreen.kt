@@ -71,7 +71,13 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PickerScreen(vault: Vault, onDone: () -> Unit) {
     val context = LocalContext.current
-    var hasAccess by remember { mutableStateOf(MediaAccess.hasReadAccess(context)) }
+    val activity = context as android.app.Activity
+    // Keyed on the foreground counter so returning from the app's settings page is
+    // noticed; nothing tells the app that a permission changed out there.
+    var hasAccess by remember(VaultSession.foregroundCount) {
+        mutableStateOf(MediaAccess.hasReadAccess(context))
+    }
+    var asked by remember { mutableStateOf(false) }
     // Re-read on every return to the foreground: the media management toggle lives in
     // Settings and nothing tells the app when it changes.
     val needsManagement = remember(VaultSession.foregroundCount) {
@@ -85,7 +91,10 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
 
     val askForAccess = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { hasAccess = MediaAccess.hasReadAccess(context) }
+    ) {
+        asked = true
+        hasAccess = MediaAccess.hasReadAccess(context)
+    }
 
     val confirmDelete = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -96,7 +105,9 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
 
     LaunchedEffect(hasAccess, needsManagement) {
         if (!hasAccess) {
-            askForAccess.launch(MediaAccess.readPermissions())
+            // Only once. Asking again after a refusal shows nothing at all, and a button
+            // that silently does nothing is worse than one that explains itself.
+            if (!asked) askForAccess.launch(MediaAccess.readPermissions())
         } else if (!needsManagement && media == null) {
             media = withContext(Dispatchers.IO) { DeviceMedia.query(context) }
         }
@@ -182,11 +193,43 @@ fun PickerScreen(vault: Vault, onDone: () -> Unit) {
                     Text(working!!, style = MaterialTheme.typography.bodyMedium)
                 }
 
-                !hasAccess -> Centred {
-                    Text("Needed to import your photos", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = { askForAccess.launch(MediaAccess.readPermissions()) }) {
-                        Text("Allow access")
+                !hasAccess -> {
+                    val partial = MediaAccess.hasPartialAccess(context)
+                    val canAsk = !asked || MediaAccess.canAskAgain(activity)
+                    Centred {
+                        Text(
+                            if (partial) "SonderLock needs all your photos"
+                            else "Needed to import your photos",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        if (partial) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Selecting a few is not enough — it has to show your " +
+                                    "whole library and remove the originals afterwards.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.height(24.dp))
+                        if (canAsk && !partial) {
+                            Button(onClick = {
+                                askForAccess.launch(MediaAccess.readPermissions())
+                            }) { Text("Allow access") }
+                        } else {
+                            // Past a second refusal, or on a partial grant, the system
+                            // dialog will not appear again. Settings is the only route.
+                            Button(onClick = {
+                                VaultSession.expectingExternalActivity = true
+                                context.startActivity(MediaAccess.appSettings(context))
+                            }) { Text("Open app settings") }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Permissions, then Photos and videos, then Allow all.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
 
