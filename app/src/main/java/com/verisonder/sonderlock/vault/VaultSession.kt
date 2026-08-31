@@ -27,6 +27,17 @@ object VaultSession {
      */
     var expectingExternalActivity: Boolean = false
 
+    /**
+     * Bumped whenever the vault's contents change. Screens read it so a grid refreshes
+     * after an import without the import having to know which screens exist.
+     */
+    private val changes = mutableStateOf(0)
+    val contentsChanged: Int get() = changes.value
+
+    fun noteContentsChanged() {
+        changes.value += 1
+    }
+
     fun open(opened: VaultStore.Opened) {
         state.value?.vault?.close()
         state.value = opened

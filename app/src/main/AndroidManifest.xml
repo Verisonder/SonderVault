@@ -2,17 +2,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-        No permissions are declared, and that is the point.
+        No INTERNET permission, and that is the load-bearing one. Nothing in this app can
+        send anything anywhere, whatever the code says, so the promise that photos stay on
+        the device does not rest on anyone reading the source and believing it.
 
-        There is no INTERNET permission, so nothing in this app can send anything
-        anywhere, whatever the code says. Importing uses the system photo picker and the
-        storage access framework, both of which hand back a single chosen item and
-        neither of which needs a permission. An app that cannot read the gallery and
-        cannot reach the network has very little it can do wrong.
-
-        Adding a permission here is therefore a decision worth arguing about, not a
-        detail. If one ever becomes necessary, say so in the release notes.
+        The media permissions exist so importing can take the original away. Leaving a
+        photo sitting in the gallery after hiding it defeats the point, and Android will
+        not let an app delete media it did not create without read access to it. Files
+        picked through the document picker still need no permission at all.
     -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!--
+        The special one. Granted by a toggle in Settings rather than a popup, and only
+        when the user goes and finds it. With it, deleting an original happens silently;
+        without it Android shows one confirmation per import. The app works either way and
+        never insists.
+    -->
+    <uses-permission android:name="android.permission.MANAGE_MEDIA" />
 
     <application
         android:name=".SonderLockApp"
@@ -20,6 +34,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
         android:hasFragileUserData="true"
+        android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"

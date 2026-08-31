@@ -21,13 +21,27 @@ import com.verisonder.sonderlock.vault.VaultStore
 @Composable
 fun AppRoot(store: VaultStore, activity: FragmentActivity) {
     var configured by remember { mutableStateOf(store.isConfigured) }
+    var picking by remember { mutableStateOf(false) }
     val opened = VaultSession.opened
+
+    // Locking while the picker is up would strand it against a closed vault, so the flag
+    // is dropped the moment the vault is not open.
+    if (opened == null && picking) picking = false
 
     Surface(modifier = Modifier.fillMaxSize()) {
         when {
             !configured -> SetupScreen(store) { configured = true }
             opened == null -> UnlockScreen(store, activity) { }
-            else -> VaultScreen(opened.vault, activity) { VaultSession.lock() }
+            picking -> PickerScreen(opened.vault) {
+                VaultSession.noteContentsChanged()
+                picking = false
+            }
+            else -> VaultScreen(
+                vault = opened.vault,
+                activity = activity,
+                onAdd = { picking = true },
+                onLock = { VaultSession.lock() },
+            )
         }
     }
 }
