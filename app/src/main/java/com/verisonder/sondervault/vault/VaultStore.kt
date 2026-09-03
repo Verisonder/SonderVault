@@ -19,6 +19,7 @@ class VaultStore(
 
     private val slotsFile = File(baseDir, "slots.bin")
     private val vaultsDir = File(baseDir, "vaults")
+    private val limit = UnlockLimit(File(baseDir, UnlockLimit.FILE_NAME))
 
     val isConfigured: Boolean get() = slotsFile.exists()
 
@@ -70,8 +71,14 @@ class VaultStore(
      * that could be pressed against the phone by someone holding your hand, and there is
      * no gesture for "open the other one".
      */
-    fun openWithMasterKey(masterKey: ByteArray): Opened =
-        Opened(openVault(masterKey, isDecoy = false), isDecoy = false, wiped = false)
+    fun openWithMasterKey(masterKey: ByteArray): Opened {
+        // A fingerprint is proof of the owner too, so it settles anything the password
+        // attempts were counting. It is deliberately not blocked by the wait: the wait
+        // exists to slow down guessing at a password, and a fingerprint cannot be
+        // guessed at. The keystore refuses this key after its own run of failures.
+        limit.clear()
+        return Opened(openVault(masterKey, isDecoy = false), isDecoy = false, wiped = false)
+    }
 
     /**
      * Add, change or remove the duress password on a vault that already exists.
@@ -170,9 +177,26 @@ class VaultStore(
     fun hasSecondVault(exclude: Vault): Boolean =
         (vaultsDir.listFiles()?.count { it.isDirectory && it.name != exclude.directory.name } ?: 0) > 0
 
+    /**
+     * How long before another password may be tried. Zero means now.
+     *
+     * The screen reads this to show a countdown; it is not the check. The check is in
+     * unlock itself, so a screen that forgot to ask still cannot spend the wait.
+     */
+    fun remainingLockoutMs(): Long = limit.remainingMs()
+
     fun unlock(password: ByteArray): Opened? {
         if (!isConfigured) return null
+        // Refused flatly while the wait is running, and the answer is the same one a
+        // wrong password gets. A screen that distinguished them would be telling whoever
+        // is guessing which of their guesses had been worth counting.
+        if (limit.remainingMs() > 0L) return null
+        limit.noteAttempt()
+
         val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return null
+        // Any real unlock clears it, the decoy included. Someone made to open the vault
+        // under duress must not then find the app counting against them.
+        limit.clear()
         val vault = openVault(unlocked.masterKey, isDecoy = unlocked.isDecoy)
         var wiped = false
         if (unlocked.wipe) {
@@ -233,12 +257,30 @@ class VaultStore(
         }
     }
 
+    /**
+     * 302 bytes, and every wrapped master key in the vault is in them.
+     *
+     * Written to a temporary file, forced to the disk, and only then moved into place.
+     * Without the sync, a rename can land while the bytes it points at are still in the
+     * page cache: the phone loses power, and slots.bin comes back empty or half written.
+     * Nothing else on the device can reconstruct it, so this is the one write in the app
+     * where an interrupted power supply has to be survivable.
+     *
+     * The old fallback of writing straight over slots.bin when the rename failed is gone.
+     * That path truncates the only copy of the file before writing the new one, which
+     * turns a rename failure into a destroyed vault. Failing loudly is the correct
+     * outcome: the caller still holds the vault it was trying to save.
+     */
     private fun writeSlots(blob: ByteArray) {
         val temp = File(baseDir, "slots.new")
-        temp.writeBytes(blob)
+        java.io.FileOutputStream(temp).use { out ->
+            out.write(blob)
+            out.flush()
+            out.fd.sync()
+        }
         if (!temp.renameTo(slotsFile)) {
-            slotsFile.writeBytes(blob)
             temp.delete()
+            throw java.io.IOException("could not save the key slots")
         }
     }
 

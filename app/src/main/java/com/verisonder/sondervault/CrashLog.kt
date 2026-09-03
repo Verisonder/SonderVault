@@ -28,7 +28,7 @@ object CrashLog {
             runCatching {
                 val stack = StringWriter().also { error.printStackTrace(PrintWriter(it)) }
                 val when_ = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-                file(context).writeText("$when_ on ${thread.name}\n\n$stack")
+                file(context).writeText("$when_ on ${thread.name}\n\n${redact(stack.toString())}")
             }
             // Always hand back to the platform: swallowing this would leave the app in a
             // half-dead state rather than closing, which is worse than crashing.
@@ -46,4 +46,18 @@ object CrashLog {
     }
 
     private fun file(context: Context) = File(context.filesDir, FILE_NAME)
+
+    /**
+     * The file was documented as holding no filenames from the vault, and mostly it did
+     * — the stored items are named after random ids. But an exception thrown while
+     * importing carries the source uri in its message, and that uri holds the original
+     * name of whatever was being hidden. Written here, that name ends up in plain text
+     * on the device, which is the exact thing the import was for.
+     *
+     * The scheme is kept because it is what makes the trace worth reading; everything
+     * after it goes.
+     */
+    private fun redact(text: String): String = text
+        .replace(Regex("""(content|file|document)://\S*""", RegexOption.IGNORE_CASE), "$1://…")
+        .replace(Regex("""/storage/\S*""", RegexOption.IGNORE_CASE), "/storage/…")
 }

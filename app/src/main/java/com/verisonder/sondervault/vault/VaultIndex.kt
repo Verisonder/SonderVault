@@ -76,7 +76,12 @@ object VaultIndex {
         for (line in lines.drop(1)) {
             if (line.isBlank()) continue
             val f = line.split('\t')
-            require(f.size == 8) { "index record has ${f.size} fields, expected 8" }
+            // At least eight, rather than exactly eight. A later version that adds a
+            // ninth field would otherwise make every index it has ever touched
+            // unreadable to this one — and the index holds every file key in the vault,
+            // so that is the whole vault, not one feature. Unknown trailing fields are
+            // ignored on purpose.
+            require(f.size >= 8) { "index record has ${f.size} fields, expected at least 8" }
             out.add(
                 VaultItem(
                     id = f[0],
@@ -119,8 +124,20 @@ object VaultIndex {
 
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 
-    private fun unhex(s: String) = ByteArray(s.length / 2) {
-        ((Character.digit(s[it * 2], 16) shl 4) or Character.digit(s[it * 2 + 1], 16)).toByte()
+    /**
+     * Character.digit answers -1 for anything that is not a hex digit, and the shift
+     * turns that into an ordinary-looking byte. A single stray character therefore used
+     * to produce a plausible key that simply did not open the file, with nothing said.
+     * A key that is wrong is worth an exception; a key that is quietly wrong is not.
+     */
+    private fun unhex(s: String): ByteArray {
+        require(s.length % 2 == 0) { "hex field has an odd length" }
+        return ByteArray(s.length / 2) {
+            val high = Character.digit(s[it * 2], 16)
+            val low = Character.digit(s[it * 2 + 1], 16)
+            require(high >= 0 && low >= 0) { "hex field holds a character that is not hex" }
+            ((high shl 4) or low).toByte()
+        }
     }
 
     fun newItemId(): String = hex(Crypto.random(16))

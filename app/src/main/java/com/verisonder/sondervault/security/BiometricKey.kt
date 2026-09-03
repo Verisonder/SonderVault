@@ -43,7 +43,16 @@ object BiometricKey {
      * A Cipher ready to wrap the master key. Hand it to BiometricPrompt; it comes back
      * usable only after the fingerprint is accepted.
      */
-    fun cipherForEnabling(): Cipher {
+    fun cipherForEnabling(baseDir: File): Cipher {
+        // bio.bin goes at the same moment as the key that wrapped it.
+        //
+        // Turning fingerprint unlock on replaces the keystore key before the prompt is
+        // shown, because the prompt is what releases it. If the prompt was then
+        // cancelled, the old bio.bin survived — wrapped under a key that no longer
+        // exists. isEnabled saw a file and a key and said yes, the unlock screen offered
+        // a fingerprint, and unwrapping failed every single time with no way back except
+        // toggling the switch off and on again.
+        wrappedFile(baseDir).delete()
         deleteKey()
         generateKey()
         return Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, secretKey()) }
@@ -67,7 +76,13 @@ object BiometricKey {
         out[0] = iv.size.toByte()
         System.arraycopy(iv, 0, out, 1, iv.size)
         System.arraycopy(sealed, 0, out, 1 + iv.size, sealed.size)
-        wrappedFile(baseDir).writeBytes(out)
+        // Forced to disk rather than left in the page cache. This is a wrapped copy of
+        // the master key and the switch is about to report that it is saved.
+        java.io.FileOutputStream(wrappedFile(baseDir)).use { stream ->
+            stream.write(out)
+            stream.flush()
+            stream.fd.sync()
+        }
     }
 
     fun unwrap(baseDir: File, cipher: Cipher): ByteArray? {
@@ -135,4 +150,8 @@ object BiometricKey {
         .setKeySize(256)
         .setUserAuthenticationRequired(true)
         .setInvalidatedByBiometricEnrollment(true)
+        // The key is unusable while the phone itself is locked. A fingerprint is already
+        // required to release it, so this costs nothing in normal use and closes the gap
+        // where a key is reachable on a device sitting on a table.
+        .setUnlockedDeviceRequired(true)
 }

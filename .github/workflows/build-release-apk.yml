@@ -15,6 +15,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Both of these used to be caught by hand, and the second one silently. A tag that
+      # disagrees with versionName publishes an APK that reports the wrong version and
+      # cannot be corrected afterwards, and a missing notes file fails at the very last
+      # step, after a full build has already run.
+      - name: Check the tag against the source
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES="docs/releasenote/release_notes_${GITHUB_REF_NAME}.md"
+
+          if [ ! -f "$NOTES" ]; then
+            echo "::error::$NOTES does not exist. Write the release notes before tagging."
+            exit 1
+          fi
+
+          DECLARED=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -n 1)
+          if [ -z "$DECLARED" ]; then
+            echo "::error::Could not read versionName out of app/build.gradle.kts."
+            exit 1
+          fi
+          if [ "$DECLARED" != "$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME says $VERSION, app/build.gradle.kts says $DECLARED."
+            exit 1
+          fi
+          echo "Tag $GITHUB_REF_NAME matches versionName $DECLARED."
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

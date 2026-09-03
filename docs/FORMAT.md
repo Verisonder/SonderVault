@@ -176,6 +176,12 @@ offset  size  field
 The manifest holds one record per entry: original filename, media type, capture date,
 byte length, offset within the entries region, container length, and the entry's file key.
 
+A reader requires **at least** those fields and ignores any it does not recognise. A
+bundle is kept for years and opened by whatever version happens to be installed at the
+time, so a manifest written by a later build has to stay readable by an earlier one. The
+stored index follows the same rule for the same reason: it holds every file key in the
+vault, and a reader that refused an unfamiliar field would be refusing the whole vault.
+
 Offsets are relative to the start of the entries region rather than to the file, and
 they have to be: the manifest sits in front of the entries and its own length depends on
 the offsets it contains, so absolute positions would be circular.
