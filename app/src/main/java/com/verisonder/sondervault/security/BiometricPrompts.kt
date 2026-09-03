@@ -60,7 +60,7 @@ object BiometricPrompts {
             return
         }
         val masterKey = vault.masterKeyCopy()
-        val cipher = runCatching { BiometricKey.cipherForEnabling() }.getOrNull()
+        val cipher = runCatching { BiometricKey.cipherForEnabling(baseDir) }.getOrNull()
         if (cipher == null) {
             Crypto.wipe(masterKey)
             onResult(false, "This device would not create the key")
@@ -73,6 +73,10 @@ object BiometricPrompts {
                 onSuccess = { result ->
                     val ready = result.cryptoObject?.cipher
                     if (ready == null) {
+                        // Every exit from here wipes the copy first. It is the master
+                        // key, and a cancelled prompt used to leave it in the heap for
+                        // as long as the process lived.
+                        Crypto.wipe(masterKey)
                         onResult(false, "No cipher came back from the prompt")
                     } else {
                         runCatching { BiometricKey.store(baseDir, ready, masterKey) }
@@ -80,7 +84,10 @@ object BiometricPrompts {
                             .onFailure { Crypto.wipe(masterKey); onResult(false, it.message) }
                     }
                 },
-                onFailure = { message -> onResult(false, message) },
+                onFailure = { message ->
+                    Crypto.wipe(masterKey)
+                    onResult(false, message)
+                },
             ),
         ).authenticate(info("Confirm to turn on fingerprint unlock"), BiometricPrompt.CryptoObject(cipher))
     }

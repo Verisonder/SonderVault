@@ -305,5 +305,11 @@ fun VaultFileReader.asInputStream(): java.io.InputStream = object : java.io.Inpu
         return take
     }
 
-    override fun available(): Int = (plainSize - position + (buffer.size - offset)).toInt()
+    /**
+     * Clamped rather than cast. A 3 GB video is a perfectly ordinary thing to put in
+     * this vault, and the plain cast wrapped to a negative number — which readers treat
+     * as end of stream, so the file silently truncated partway through.
+     */
+    override fun available(): Int =
+        (plainSize - position + (buffer.size - offset)).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
 }

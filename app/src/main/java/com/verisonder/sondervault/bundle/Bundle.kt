@@ -98,7 +98,10 @@ object Bundle {
         for (line in lines.drop(1)) {
             if (line.isBlank()) continue
             val f = line.split('\t')
-            require(f.size == 7) { "manifest record has ${f.size} fields, expected 7" }
+            // At least seven. A bundle is kept for years and opened by whatever version
+            // is installed at the time, so a manifest written by a later build has to
+            // stay readable by this one; unknown trailing fields are ignored.
+            require(f.size >= 7) { "manifest record has ${f.size} fields, expected at least 7" }
             out.add(
                 BundleEntry(
                     name = unescape(f[0]),
@@ -138,7 +141,14 @@ object Bundle {
 
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
 
-    private fun unhex(s: String) = ByteArray(s.length / 2) {
-        ((Character.digit(s[it * 2], 16) shl 4) or Character.digit(s[it * 2 + 1], 16)).toByte()
+    /** Rejects a malformed key rather than deriving a wrong one from it silently. */
+    private fun unhex(s: String): ByteArray {
+        require(s.length % 2 == 0) { "hex field has an odd length" }
+        return ByteArray(s.length / 2) {
+            val high = Character.digit(s[it * 2], 16)
+            val low = Character.digit(s[it * 2 + 1], 16)
+            require(high >= 0 && low >= 0) { "hex field holds a character that is not hex" }
+            ((high shl 4) or low).toByte()
+        }
     }
 }

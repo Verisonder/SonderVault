@@ -36,11 +36,40 @@ class Vault internal constructor(
     private val itemsDir = File(directory, "items").apply { mkdirs() }
     private val indexFile = File(directory, "index")
 
+    @Volatile
     private var cache: MutableList<VaultItem>? = null
+
+    /**
+     * Set by close, which zeroes the index key.
+     *
+     * Anything still running at that moment would otherwise derive its keys from an
+     * all-zero array and write an index that the real key cannot read — losing every
+     * file key in the vault. An import that is still finishing when the app goes to the
+     * background is exactly that case. Failing here is recoverable; writing the index
+     * under a dead key is not.
+     */
+    @Volatile
+    private var closed = false
+
+    private fun checkOpen() = check(!closed) { "the vault is closed" }
 
     // ------------------------------------------------------------------- the index
 
+    /**
+     * Every read and every write of the index goes through this lock.
+     *
+     * A screenful of tiles regenerating missing thumbnails runs one coroutine per tile,
+     * and each one rewrites the whole index. Without the lock, two of them — or one of
+     * them and an import — read the same list, and whichever writes second drops the
+     * other's item silently.
+     */
+    @Synchronized
     fun items(): List<VaultItem> {
+        // A read that lands just after locking would otherwise try to authenticate the
+        // index against a zeroed key and throw. Nothing is lost by answering empty: the
+        // screen asking is about to be replaced by the unlock screen. Writes still
+        // refuse outright, because a write is the one that does damage.
+        if (closed) return emptyList()
         cache?.let { return it.toList() }
         val loaded = if (!indexFile.exists()) {
             mutableListOf<VaultItem>()
@@ -54,7 +83,20 @@ class Vault internal constructor(
         return loaded.toList()
     }
 
+    /**
+     * Read the index, change it, write it back, without anything getting in between.
+     *
+     * The lock covers only this — never a file copy — so importing a large video does
+     * not block a grid full of tiles from recording the thumbnails they just made.
+     */
+    @Synchronized
+    private fun mutateIndex(change: (List<VaultItem>) -> List<VaultItem>) {
+        writeIndex(change(items()))
+    }
+
+    @Synchronized
     private fun writeIndex(items: List<VaultItem>) {
+        checkOpen()
         // Written beside the real file and moved into place, so an interrupted write
         // leaves the previous index intact rather than a half-written one. Losing the
         // index loses every file key, which is the same as losing the vault.
@@ -76,6 +118,7 @@ class Vault internal constructor(
         capturedAt: Long = System.currentTimeMillis(),
         thumbnail: ByteArray? = null,
     ): VaultItem {
+        checkOpen()
         val id = VaultIndex.newItemId()
         val fileKey = Crypto.randomKey()
         var size = 0L
@@ -106,7 +149,7 @@ class Vault internal constructor(
             fileKey = fileKey,
             hasThumbnail = thumbnail != null,
         )
-        writeIndex(items() + item)
+        mutateIndex { it + item }
         return item
     }
 
@@ -131,23 +174,27 @@ class Vault internal constructor(
      * to decode at import, so the grid regenerates on demand rather than leaving a grey
      * square forever.
      *
-     * Synchronised because a screenful of tiles can discover they are missing thumbnails
-     * at the same moment, and each one rewrites the index.
+     * A screenful of tiles can discover they are missing thumbnails at the same moment,
+     * and each one rewrites the index — so the record goes in through mutateIndex, which
+     * is where that race is settled.
      */
-    @Synchronized
     fun attachThumbnail(item: VaultItem, thumbnail: ByteArray): VaultItem {
+        checkOpen()
         VaultFileWriter(thumbnailFile(item.id), Crypto.hkdf(item.fileKey, INFO_THUMB)).use {
             it.write(thumbnail)
         }
         val updated = item.copy(hasThumbnail = true)
-        writeIndex(items().map { if (it.id == item.id) updated else it })
+        // Only the record for this item is touched. Anything else that changed while the
+        // thumbnail was being made is left as it is rather than reverted to a stale copy.
+        mutateIndex { current -> current.map { if (it.id == item.id) updated else it } }
         return updated
     }
 
     fun delete(item: VaultItem) {
+        checkOpen()
         contentFile(item.id).delete()
         thumbnailFile(item.id).delete()
-        writeIndex(items().filterNot { it.id == item.id })
+        mutateIndex { current -> current.filterNot { it.id == item.id } }
     }
 
     // --------------------------------------------------------------------- destroy
@@ -219,9 +266,18 @@ class Vault internal constructor(
 
     private fun thumbnailFile(id: String) = File(itemsDir, "$id.thb")
 
+    /**
+     * Closed means the key material is gone, not merely that nobody is looking.
+     *
+     * The master key is zeroed here too. It was previously left in the heap for the
+     * garbage collector to get to eventually, which meant locking the app did not
+     * actually take the key out of memory — the one thing locking is for.
+     */
+    @Synchronized
     override fun close() {
+        closed = true
         cache = null
-        Crypto.wipe(indexKey)
+        Crypto.wipe(indexKey, masterKey)
     }
 
     companion object {
