@@ -1,15 +1,24 @@
-<div align="center">
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="SonderVault" width="100%">
+</p>
 
-<img src="docs/logo.png" width="140" alt="SonderVault">
+<p align="center">
+  <a href="https://github.com/Verisonder/SonderVault/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Verisonder/SonderVault?style=flat-square&color=3B82FF&label=release"></a>
+  <a href="https://github.com/Verisonder/SonderVault/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/Verisonder/SonderVault/total?style=flat-square&color=3B82FF"></a>
+  <img alt="Android 9+" src="https://img.shields.io/badge/Android-9%2B-3B82FF?style=flat-square">
+  <img alt="No internet permission" src="https://img.shields.io/badge/internet-none-3B82FF?style=flat-square">
+  <a href="LICENSE"><img alt="GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-3B82FF?style=flat-square"></a>
+  <a href="https://github.com/Verisonder/SonderVault/actions/workflows/checks.yml"><img alt="Checks" src="https://img.shields.io/github/actions/workflow/status/Verisonder/SonderVault/checks.yml?branch=main&style=flat-square&label=checks"></a>
+</p>
 
-# SonderVault
+<p align="center">
+  <b>A private space on your phone for photos, videos and files.</b><br>
+  Everything is encrypted on the device and stays there. No account, no cloud, no internet permission.
+</p>
 
-**A private space on your phone for photos, videos and files.**
-Everything is encrypted on the device and stays there.
-
-`com.verisonder.sondervault` · GPL-3.0-only · Android 9 and above
-
-</div>
+<p align="center">
+  <a href="https://github.com/Verisonder/SonderVault/releases/latest"><b>⬇ Download the APK</b></a>
+</p>
 
 ---
 

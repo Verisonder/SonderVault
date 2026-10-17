@@ -1,0 +1,55 @@
+name: Bug report
+description: Something doesn't work, a file won't open, or the app crashes.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please don't attach photos, file names or codes from your vault — none of that is needed to fix a bug.
+        If SonderVault crashed, it shows the crash report the next time it opens, with a button to copy it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+      placeholder: "I imported 20 photos and the app closed halfway."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SonderVault version
+      placeholder: "1.5"
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: Phone and Android version
+      placeholder: "Xiaomi 12T, HyperOS 2, Android 15"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      multiple: true
+      options:
+        - Unlocking or fingerprint
+        - Importing photos or videos
+        - Importing files
+        - Viewing (photos, videos, PDFs)
+        - Putting back on the phone
+        - Sharing or backing up
+        - Opening a shared file or backup
+        - Duress password
+        - Settings or looks
+    validations:
+      required: true
+  - type: textarea
+    id: crash
+    attributes:
+      label: Crash report
+      description: Paste it here if SonderVault crashed.
+      render: text

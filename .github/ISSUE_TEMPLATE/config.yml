@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/Verisonder/SonderVault/security/advisories/new
+    about: Anything that could expose what is in a vault. Please don't open a public issue for it.
+  - name: Download the latest version
+    url: https://github.com/Verisonder/SonderVault/releases/latest
+    about: Check that the problem still happens on the newest release before reporting.
