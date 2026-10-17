@@ -7,7 +7,7 @@
   <a href="https://github.com/Verisonder/SonderVault/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/Verisonder/SonderVault/total?style=flat-square&color=3B82FF"></a>
   <img alt="Android 9+" src="https://img.shields.io/badge/Android-9%2B-3B82FF?style=flat-square">
   <img alt="No internet permission" src="https://img.shields.io/badge/internet-none-3B82FF?style=flat-square">
-  <a href="LICENSE"><img alt="GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-3B82FF?style=flat-square"></a>
+  <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3B82FF?style=flat-square"></a>
   <a href="https://github.com/Verisonder/SonderVault/actions/workflows/checks.yml"><img alt="Checks" src="https://img.shields.io/github/actions/workflow/status/Verisonder/SonderVault/checks.yml?branch=main&style=flat-square&label=checks"></a>
 </p>
 
@@ -140,3 +140,21 @@ binary jar sits in source control.
 gradle testDebugUnitTest
 gradle assembleDebug
 ```
+
+## Using SonderVault
+
+You're welcome to use it, change it and share it — just:
+
+- ✅ **Keep the credit** — leave the copyright and `NOTICE` in place
+- 🚫 **Don't claim it as your own** — don't pass SonderVault off as something you created; if you build on it, say it's based on SonderVault by Verisonder
+- 🚫 **Don't imply endorsement** — the SonderVault name and logo are the author's; name them only to credit the origin
+
+Want to do something beyond that? Just ask first. 🔒
+
+## License
+
+Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). Free to use with attribution; you may not claim it as your own or imply the author's endorsement.
+
+Fonts: Unbounded and DM Sans, SIL Open Font License. The BIP-39 wordlist keeps its own licence.
+
+<p align="center"><sub>By <a href="https://github.com/Verisonder">Verisonder</a></sub></p>

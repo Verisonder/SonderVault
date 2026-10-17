@@ -1,0 +1,16 @@
+SonderVault
+Copyright 2026 Verisonder
+
+This product is SonderVault by Verisonder:
+https://github.com/Verisonder/SonderVault
+
+If you redistribute SonderVault or build on it, keep this NOTICE file and say
+that your work is based on SonderVault by Verisonder. The SonderVault name and
+logo belong to the author; use them only to credit the origin, not to suggest
+the author endorses your work.
+
+Third-party material:
+- Fonts Unbounded and DM Sans: SIL Open Font License 1.1 (see licenses/).
+- The BIP-39 English wordlist, used for six-word codes (MIT).
+- Open-source Android libraries (AndroidX, Media3, CameraX, Bouncy Castle,
+  ZXing), each under its own licence (Apache-2.0 or MIT).
