@@ -115,7 +115,12 @@ app/src/main/java/com/verisonder/sondervault/
     ui/         every screen
 docs/FORMAT.md  byte layouts and the reasoning behind them
 tools/          the Python reference and the generators
+licenses/       licences for the bundled fonts
 ```
+
+The look is shared with SonderShield: Unbounded for headings and numbers, DM Sans for
+everything else (both under the SIL Open Font License, see `licenses/`), a near-black page
+and one accent colour you can change in Settings.
 
 ## Building
 

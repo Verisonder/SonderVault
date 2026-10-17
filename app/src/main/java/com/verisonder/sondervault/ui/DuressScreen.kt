@@ -1,31 +1,17 @@
 package com.verisonder.sondervault.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,12 +19,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.verisonder.sondervault.ui.theme.Palette
 import com.verisonder.sondervault.vault.Vault
 import com.verisonder.sondervault.vault.VaultStore
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +43,6 @@ private const val MINIMUM_LENGTH = 8
  * Either way the next step is choosing what the second vault holds, because a second
  * password that opens an empty vault announces itself.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DuressScreen(
     store: VaultStore,
@@ -95,254 +79,183 @@ fun DuressScreen(
         !sameAsMain &&
         !working
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Duress password") },
-                navigationIcon = {
-                    IconButton(onClick = onClose, enabled = !working) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close")
+    fun submit() {
+        if (!ready) return
+        working = true
+        problem = null
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching {
+                    if (alreadySet) {
+                        val ok = store.changeDuress(
+                            current.toByteArray(Charsets.UTF_8),
+                            duress.toByteArray(Charsets.UTF_8),
+                            wipes,
+                        )
+                        if (!ok) error("wrong") else null
+                    } else {
+                        store.setDuress(
+                            current.toByteArray(Charsets.UTF_8),
+                            vault,
+                            duress.toByteArray(Charsets.UTF_8),
+                            wipes,
+                        ) ?: error("failed")
                     }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-        ) {
-            Text(
-                if (alreadySet) {
-                    "Change the password, or what happens when it is used."
-                } else {
-                    "A duress password that opens a different set of photos. Anyone made " +
-                        "to hand over a password can hand over this one."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                }
+            }
+            working = false
+            result
+                .onSuccess { decoy ->
+                    // A vault that already has its photos does not need to be filled again.
+                    if (decoy != null) onChooseDecoyPhotos(decoy) else onClose()
+                }
+                .onFailure {
+                    problem = if (alreadySet) {
+                        "That is not your current duress password."
+                    } else {
+                        "That is not your password."
+                    }
+                }
+        }
+    }
 
-            Spacer(Modifier.height(24.dp))
-            OutlinedTextField(
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Palette.bg)
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding(),
+    ) {
+        TopBar(onBack = onClose, close = true, enabled = !working)
+        ScreenHeader(
+            "Duress password.",
+            sub = if (alreadySet) {
+                "Change the password, or what happens when it is used."
+            } else {
+                "A duress password that opens a different set of photos. Anyone made " +
+                    "to hand over a password can hand over this one."
+            },
+        )
+
+        Section(1, "Passwords", first = true) {
+            InputField(
                 value = current,
-                onValueChange = { current = it; problem = null },
-                label = {
-                    Text(if (alreadySet) "Current duress password" else "Your password")
-                },
-                singleLine = true,
+                onChange = { current = it; problem = null },
+                placeholder = if (alreadySet) "Current duress password" else "Your password",
+                password = true,
                 enabled = !working,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next,
-                ),
-                modifier = Modifier.fillMaxWidth(),
+                imeAction = ImeAction.Next,
             )
-
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
+            Spacer(Modifier.height(12.dp))
+            InputField(
                 value = duress,
-                onValueChange = { duress = it; problem = null },
-                label = { Text(if (alreadySet) "New duress password" else "Duress password") },
-                singleLine = true,
+                onChange = { duress = it; problem = null },
+                placeholder = if (alreadySet) "New duress password" else "Duress password",
+                password = true,
                 enabled = !working,
-                isError = tooShort || sameAsMain,
-                supportingText = when {
-                    sameAsMain -> {
-                        { Text("It has to be different from the one above.") }
-                    }
-                    tooShort -> {
-                        { Text("At least $MINIMUM_LENGTH characters") }
-                    }
+                problem = when {
+                    sameAsMain -> "It has to be different from the one above."
+                    tooShort -> "At least $MINIMUM_LENGTH characters"
                     else -> null
                 },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next,
-                ),
-                modifier = Modifier.fillMaxWidth(),
+                imeAction = ImeAction.Next,
             )
-
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
+            Spacer(Modifier.height(12.dp))
+            InputField(
                 value = confirm,
-                onValueChange = { confirm = it; problem = null },
-                label = {
-                    Text(if (alreadySet) "New duress password again" else "Duress password again")
-                },
-                singleLine = true,
+                onChange = { confirm = it; problem = null },
+                placeholder = if (alreadySet) "New duress password again" else "Duress password again",
+                password = true,
                 enabled = !working,
-                isError = mismatch,
-                supportingText = if (mismatch) {
-                    { Text("These do not match") }
-                } else {
-                    null
-                },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done,
-                ),
-                modifier = Modifier.fillMaxWidth(),
+                problem = if (mismatch) "These do not match" else null,
+                imeAction = ImeAction.Done,
+                onAction = { submit() },
             )
+        }
 
-            Spacer(Modifier.height(24.dp))
-            Text("When it is used", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
-
-            Choice(
+        Section(2, "When it is used") {
+            OptionCard(
+                "Open the other photos",
+                "Nothing is destroyed. Works every time it is used.",
                 selected = !wipes,
-                title = "Open the other photos",
-                detail = "Nothing is destroyed. Works every time it is used.",
-                onSelect = { wipes = false },
+                onClick = { wipes = false },
             )
-            Choice(
+            OptionCard(
+                "Open them and erase the real vault",
+                "Everything you were hiding is gone, permanently and immediately.",
                 selected = wipes,
-                title = "Open them and erase the real vault",
-                detail = "Everything you were hiding is gone, permanently and immediately.",
-                onSelect = { wipes = true },
+                onClick = { wipes = true },
             )
 
             if (wipes) {
-                Spacer(Modifier.height(12.dp))
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
-                ) {
+                Block(Modifier.padding(top = 4.dp).enter(0), color = Palette.danger.copy(alpha = 0.16f)) {
                     Text(
                         "Typing this password by mistake destroys everything. Make it " +
                             "nothing like your own.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp),
+                        color = Palette.text,
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
                     )
                 }
             }
+        }
 
+        Column(Modifier.padding(horizontal = Gutter).padding(top = 24.dp)) {
             problem?.let {
-                Spacer(Modifier.height(16.dp))
-                Text(it, color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium)
+                Text(it, color = Palette.danger, fontSize = 14.sp)
+                Spacer(Modifier.height(12.dp))
             }
 
-            Spacer(Modifier.height(24.dp))
-            Button(
-                onClick = {
-                    working = true
-                    problem = null
-                    scope.launch {
-                        val result = withContext(Dispatchers.Default) {
-                            runCatching {
-                                if (alreadySet) {
-                                    val ok = store.changeDuress(
-                                        current.toByteArray(Charsets.UTF_8),
-                                        duress.toByteArray(Charsets.UTF_8),
-                                        wipes,
-                                    )
-                                    if (!ok) error("wrong") else null
-                                } else {
-                                    store.setDuress(
-                                        current.toByteArray(Charsets.UTF_8),
-                                        vault,
-                                        duress.toByteArray(Charsets.UTF_8),
-                                        wipes,
-                                    ) ?: error("failed")
-                                }
-                            }
-                        }
-                        working = false
-                        result
-                            .onSuccess { decoy ->
-                                // A vault that already has its photos does not need to be
-                                // filled again.
-                                if (decoy != null) onChooseDecoyPhotos(decoy) else onClose()
-                            }
-                            .onFailure {
-                                problem = if (alreadySet) {
-                                    "That is not your current duress password."
-                                } else {
-                                    "That is not your password."
-                                }
-                            }
-                    }
-                },
-                enabled = ready,
+            PillButton(
+                "Continue",
+                enabled = ready || working,
+                working = working,
+                danger = wipes,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (working) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.height(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text("Continue")
-                }
-            }
+            ) { submit() }
 
             if (!alreadySet) {
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Next you choose which photos the duress password shows. Pick " +
                         "ordinary ones — an empty vault gives the game away.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Palette.dim,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
                 )
             }
 
             if (alreadySet) {
-                Spacer(Modifier.height(24.dp))
-                TextButton(
-                    onClick = {
-                        working = true
-                        problem = null
-                        scope.launch {
-                            val ok = withContext(Dispatchers.Default) {
-                                store.removeDuress(current.toByteArray(Charsets.UTF_8))
-                            }
-                            working = false
-                            if (ok) onClose()
-                            else problem = "That is not your current duress password."
-                        }
-                    },
+                Spacer(Modifier.height(20.dp))
+                PillButton(
+                    "Remove the duress password",
+                    filled = false,
                     enabled = current.isNotEmpty() && !working,
-                ) { Text("Remove the duress password") }
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    working = true
+                    problem = null
+                    scope.launch {
+                        val ok = withContext(Dispatchers.Default) {
+                            store.removeDuress(current.toByteArray(Charsets.UTF_8))
+                        }
+                        working = false
+                        if (ok) onClose()
+                        else problem = "That is not your current duress password."
+                    }
+                }
                 Text(
                     "The photos it shows are deleted with it.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Palette.dim,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 8.dp, start = 6.dp),
                 )
             }
 
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onClose, enabled = !working) { Text("Cancel") }
-        }
-    }
-}
-
-@Composable
-private fun Choice(selected: Boolean, title: String, detail: String, onSelect: () -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, onClick = onSelect)
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        Spacer(Modifier.height(0.dp))
-        Column(modifier = Modifier.padding(start = 8.dp, top = 12.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                detail,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            TextAction("Cancel", enabled = !working, color = Palette.dim, onClick = onClose)
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

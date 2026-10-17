@@ -1,28 +1,38 @@
 package com.verisonder.sondervault.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.verisonder.sondervault.ui.theme.Palette
 import androidx.fragment.app.FragmentActivity
 import com.verisonder.sondervault.CrashLog
 import com.verisonder.sondervault.vault.VaultSession
@@ -88,7 +98,19 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
             }
         }
 
-        when (val here = where) {
+        // Screens slide in from the right going deeper and back out going back, like the
+        // tabs in SonderShield.
+        AnimatedContent(
+            targetState = where,
+            contentKey = { it::class },
+            transitionSpec = {
+                val deeper = targetState != Where.Grid
+                val dir = if (deeper) 1 else -1
+                (slideInHorizontally(tween(260)) { w -> dir * w / 6 } + fadeIn(tween(220))) togetherWith
+                    (slideOutHorizontally(tween(260)) { w -> -dir * w / 8 } + fadeOut(tween(160)))
+            },
+            label = "screen",
+        ) { here -> when (here) {
             Where.Grid -> VaultScreen(
                 store = store,
                 vault = vault,
@@ -156,7 +178,7 @@ fun AppRoot(store: VaultStore, activity: FragmentActivity) {
             is Where.Restoring -> RestoreScreen(vault, activity) {
                 where = if (here.fromSettings) Where.Settings else Where.Grid
             }
-        }
+        } }
     }
 }
 
@@ -170,19 +192,29 @@ private fun CrashReport(text: String, onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .systemBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(vertical = 20.dp),
     ) {
-        Text("SonderVault closed unexpectedly", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(12.dp))
-        TextButton(onClick = { clipboard.setText(AnnotatedString(text)) }) { Text("Copy report") }
-        TextButton(onClick = onDismiss) { Text("Dismiss") }
-        Spacer(Modifier.height(12.dp))
+        ScreenHeader(
+            "Something went wrong.",
+            kicker = "Crash report",
+            sub = "SonderVault closed unexpectedly. Nothing was sent anywhere.",
+        )
+        Row(
+            Modifier.padding(horizontal = Gutter, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PillButton("Copy report") { clipboard.setText(AnnotatedString(text)) }
+            PillButton("Dismiss", filled = false, onClick = onDismiss)
+        }
         Text(
             text,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
+            color = Palette.dim,
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter)
+                .clip(blockShape).background(Palette.panel).padding(16.dp),
         )
     }
 }

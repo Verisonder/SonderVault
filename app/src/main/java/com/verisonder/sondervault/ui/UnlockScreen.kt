@@ -1,22 +1,16 @@
 package com.verisonder.sondervault.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,11 +21,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.verisonder.sondervault.security.BiometricKey
+import com.verisonder.sondervault.ui.theme.Palette
 import com.verisonder.sondervault.security.BiometricPrompts
 import com.verisonder.sondervault.vault.VaultSession
 import com.verisonder.sondervault.vault.VaultStore
@@ -127,59 +120,49 @@ fun UnlockScreen(
         if (fingerprintReady) tryFingerprint()
     }
 
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 32.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it; problem = null },
-                label = { Text("Password") },
-                singleLine = true,
-                enabled = !working && !waiting,
-                isError = problem != null || waiting,
-                supportingText = when {
-                    // Says how long, and nothing else. Not how many attempts have been
-                    // made, not how many are left, not whether any of them were close.
-                    waiting -> { { Text("Too many attempts. Try again in ${countdown(waitMs)}.") } }
-                    problem != null -> { { Text(problem!!) } }
-                    else -> null
-                },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Go,
-                ),
-                keyboardActions = KeyboardActions(onGo = { submit() }),
-                modifier = Modifier.fillMaxWidth(),
-            )
+    // The house look, kept bare: a label, the field, the button. Still no name, logo or
+    // heading, for the reason at the top of this file.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Palette.bg)
+            .systemBarsPadding()
+            .imePadding()
+            .padding(horizontal = Gutter, vertical = 32.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Kicker("Password", Modifier.padding(bottom = 14.dp).enter(0))
+        InputField(
+            value = password,
+            onChange = { password = it; problem = null },
+            placeholder = "Password",
+            password = true,
+            enabled = !working && !waiting,
+            // Says how long, and nothing else. Not how many attempts have been made, not
+            // how many are left, not whether any of them were close.
+            problem = when {
+                waiting -> "Too many attempts. Try again in ${countdown(waitMs)}."
+                else -> problem
+            },
+            imeAction = ImeAction.Go,
+            onAction = { submit() },
+            modifier = Modifier.enter(1),
+        )
 
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
 
-            Button(
-                onClick = { submit() },
-                enabled = password.isNotEmpty() && !working && !waiting,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (working) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text("Open")
-                }
-            }
+        PillButton(
+            "Open",
+            enabled = password.isNotEmpty() && !waiting,
+            working = working,
+            onClick = { submit() },
+            modifier = Modifier.fillMaxWidth().enter(2),
+        )
 
-            if (fingerprintReady) {
-                Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { tryFingerprint() }) { Text("Use fingerprint") }
+        if (fingerprintReady) {
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().enter(3), contentAlignment = Alignment.Center) {
+                TextAction("Use fingerprint") { tryFingerprint() }
             }
         }
     }

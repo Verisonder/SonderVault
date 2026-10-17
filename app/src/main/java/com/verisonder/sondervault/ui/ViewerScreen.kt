@@ -8,6 +8,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
@@ -34,10 +36,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -59,6 +57,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -72,6 +72,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.verisonder.sondervault.ui.theme.Palette
+import com.verisonder.sondervault.ui.theme.display
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
@@ -203,24 +206,21 @@ fun ViewerScreen(
                     .statusBarsPadding()
                     .padding(horizontal = 4.dp, vertical = 8.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onClose, enabled = busy == null) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                        )
-                    }
-                    Column {
+                Row(
+                    Modifier.padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ViewerButton(LineIcons.back, "Back", enabled = busy == null, onClick = onClose)
+                    Column(Modifier.padding(start = 12.dp)) {
                         Text(
                             dayOf(current.capturedAt),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = display(16),
                             color = Color.White,
                         )
                         Text(
                             timeOf(current.capturedAt),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 13.sp,
+                            color = Color.White.copy(alpha = 0.7f),
                         )
                     }
                 }
@@ -238,29 +238,12 @@ fun ViewerScreen(
                     .fillMaxWidth()
                     .background(Color.Black.copy(alpha = 0.55f))
                     .navigationBarsPadding()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                IconButton(
-                    onClick = { onShare(listOf(current.id)) },
-                    enabled = busy == null,
-                ) { Icon(Icons.Filled.Share, contentDescription = "Share", tint = Color.White) }
-
-                IconButton(
-                    onClick = { confirmingPutBack = true },
-                    enabled = busy == null,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_put_back),
-                        contentDescription = "Put back on phone",
-                        tint = Color.White,
-                    )
-                }
-
-                IconButton(
-                    onClick = { confirmingDelete = true },
-                    enabled = busy == null,
-                ) { Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.White) }
+                ViewerAction(LineIcons.share, "Share", enabled = busy == null) { onShare(listOf(current.id)) }
+                ViewerAction(LineIcons.putBack, "Put back", enabled = busy == null) { confirmingPutBack = true }
+                ViewerAction(LineIcons.trash, "Delete", enabled = busy == null) { confirmingDelete = true }
             }
         }
 
@@ -268,7 +251,7 @@ fun ViewerScreen(
             Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)),
                 contentAlignment = Alignment.Center,
-            ) { CircularProgressIndicator(color = Color.White) }
+            ) { CircularProgressIndicator(color = Palette.accent) }
         }
     }
 
@@ -308,7 +291,7 @@ fun ViewerScreen(
                     run("Deleting") {
                         runCatching { vault.delete(current) }.exceptionOrNull()?.message
                     }
-                }) { Text("Delete") }
+                }) { Text("Delete", color = Palette.danger) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmingDelete = false }) { Text("Cancel") }
@@ -719,3 +702,22 @@ private fun dayOf(millis: Long): String =
 
 private fun timeOf(millis: Long): String =
     SimpleDateFormat("H:mm", Locale.getDefault()).format(Date(millis))
+
+/** Round translucent button on the viewer's dark bars. */
+@Composable
+private fun ViewerButton(icon: ImageVector, description: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Box(
+        Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, description, tint = if (enabled) Color.White else Color.White.copy(alpha = 0.4f), modifier = Modifier.size(20.dp)) }
+}
+
+/** An icon with its name under it, on the viewer's bottom bar. */
+@Composable
+private fun ViewerAction(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        ViewerButton(icon, label, enabled, onClick)
+        Text(label, color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+    }
+}

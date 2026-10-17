@@ -1,35 +1,48 @@
 package com.verisonder.sondervault.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
+import com.verisonder.sondervault.Preferences
 import com.verisonder.sondervault.security.BiometricKey
 import com.verisonder.sondervault.security.BiometricPrompts
+import com.verisonder.sondervault.ui.theme.AccentChoices
+import com.verisonder.sondervault.ui.theme.Look
+import com.verisonder.sondervault.ui.theme.Palette
+import com.verisonder.sondervault.ui.theme.ThemeMode
+import com.verisonder.sondervault.ui.theme.display
+import com.verisonder.sondervault.ui.theme.onColor
 import com.verisonder.sondervault.vault.Vault
 import com.verisonder.sondervault.vault.VaultSession
 import com.verisonder.sondervault.vault.VaultStore
@@ -41,7 +54,6 @@ import com.verisonder.sondervault.vault.VaultStore
  * Nothing on this screen states whether a duress password is currently set, because
  * someone made to open the vault could be made to open settings too.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     store: VaultStore,
@@ -63,39 +75,29 @@ fun SettingsScreen(
     }
     var note by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            SectionLabel("Vault")
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Palette.bg)
+            .verticalScroll(rememberScrollState())
+            .navigationBarsPadding(),
+    ) {
+        TopBar(onBack = onClose)
+        ScreenHeader("Settings.")
+
+        Section(1, "Vault", first = true) {
             // Absent inside the decoy, and not merely disabled. Someone who forced this
             // vault open can scroll settings too, and a greyed-out row named "Duress
             // password" tells them exactly what they are looking at and that there is
             // more to find.
             if (!vault.isDecoy) {
-                Row(
-                    title = "Duress password",
-                    detail = "Opens a different set of photos.",
-                    onClick = onDuress,
-                )
+                LinkCard("Duress password", "Opens a different set of photos.", onDuress)
             }
-            if (fingerprintPossible || BiometricKey.isEnabled(activity.filesDir)) SwitchRow(
+            if (fingerprintPossible || BiometricKey.isEnabled(activity.filesDir)) ToggleCard(
                 title = "Fingerprint unlock",
-                detail = when {
+                sub = when {
                     !fingerprintPossible -> "No fingerprint is set up on this phone."
                     note != null -> note!!
                     fingerprintOn -> "Also confirms when files leave the vault."
@@ -116,92 +118,79 @@ fun SettingsScreen(
                     }
                 },
             )
+        }
 
-            HorizontalDivider()
-            SectionLabel("Files")
-            Row(
-                title = "Back up everything",
-                detail = "One encrypted file with its own code.",
-                onClick = onBackUp,
-            )
-            Row(
-                title = "Open a shared file",
-                detail = "Add items from a file someone sent you, or from a backup.",
-                onClick = onRestore,
-            )
+        Section(2, "Files") {
+            LinkCard("Back up everything", "One encrypted file with its own code.", onBackUp)
+            LinkCard("Open a shared file", "Add items from a file someone sent you, or from a backup.", onRestore)
+        }
 
-            HorizontalDivider()
-            SectionLabel("This vault")
+        Section(3, "Look") {
             Row(
-                title = "${items.size} items",
-                detail = "${used / 1024 / 1024} MB on this phone.",
-                onClick = null,
-            )
-            Spacer(Modifier.height(16.dp))
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ThemeMode.entries.filter { it != ThemeMode.You || ThemeMode.youAvailable }.forEach { mode ->
+                    Chip(mode.label, Look.mode == mode) {
+                        Look.mode = mode
+                        Preferences.setTheme(context, mode.id)
+                    }
+                }
+            }
+            if (Look.mode != ThemeMode.You) {
+                Text(
+                    "Accent",
+                    color = Palette.dim, fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 16.dp, bottom = 10.dp),
+                )
+                AccentChoices.chunked(6).forEach { row ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        row.forEach { c ->
+                            val picked = c.toArgb() == Look.accent.toArgb()
+                            Box(
+                                Modifier.size(42.dp).pressScale().clip(CircleShape).background(c)
+                                    .border(3.dp, if (picked) Palette.text else Color.Transparent, CircleShape)
+                                    .clickable {
+                                        Look.accent = c
+                                        Preferences.setAccent(context, c.toArgb())
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (picked) Icon(LineIcons.check, null, tint = onColor(c), modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Section(4, "This vault") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatTile("${items.size}", if (items.size == 1) "item" else "items", Modifier.weight(1f))
+                StatTile("${used / 1024 / 1024} MB", "on this phone", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(12.dp))
             Text(
                 "Uninstalling SonderVault deletes everything in it. A backup is the only " +
                     "way to get it back.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 24.dp),
+                color = Palette.dim,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
             )
-            Spacer(Modifier.height(32.dp))
         }
+        Spacer(Modifier.height(40.dp))
     }
 }
 
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun Row(title: String, detail: String, onClick: (() -> Unit)?) {
+private fun StatTile(value: String, label: String, modifier: Modifier) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
+        modifier.clip(blockShape).background(Palette.panel).padding(horizontal = 16.dp, vertical = 16.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.height(2.dp))
-        Text(
-            detail,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun SwitchRow(
-    title: String,
-    detail: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
-    androidx.compose.foundation.layout.Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (enabled) Modifier.clickable { onChange(!checked) } else Modifier)
-            .padding(horizontal = 24.dp, vertical = 14.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                detail,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+        Text(value, style = display(24), color = Palette.accentText, maxLines = 1)
+        Text(label, color = Palette.dim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }

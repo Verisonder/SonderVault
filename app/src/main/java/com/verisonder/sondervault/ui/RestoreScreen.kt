@@ -2,26 +2,17 @@ package com.verisonder.sondervault.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
@@ -33,12 +24,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.verisonder.sondervault.ui.theme.Palette
+import com.verisonder.sondervault.ui.theme.display
 import androidx.fragment.app.FragmentActivity
 import com.verisonder.sondervault.bundle.BundleReader
 import com.verisonder.sondervault.vault.Vault
-import androidx.compose.ui.res.painterResource
-import com.verisonder.sondervault.R
 import com.verisonder.sondervault.vault.VaultSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,7 +46,6 @@ import java.io.File
  * cannot always be seeked. The copy is deleted as soon as the import finishes, whether it
  * worked or not.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RestoreScreen(vault: Vault, activity: FragmentActivity, onDone: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -131,80 +123,61 @@ fun RestoreScreen(vault: Vault, activity: FragmentActivity, onDone: () -> Unit) 
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Open a shared file") },
-                navigationIcon = {
-                    IconButton(
-                        onClick = { staged?.delete(); onDone() },
-                        enabled = working == null,
-                    ) { Icon(Icons.Filled.Close, contentDescription = "Close") }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp),
-        ) {
+    Column(Modifier.fillMaxSize().background(Palette.bg).navigationBarsPadding().imePadding()) {
+        TopBar(onBack = { staged?.delete(); onDone() }, close = true, enabled = working == null)
+        ScreenHeader("Open a shared file.", kicker = "Restore")
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = Gutter, vertical = 16.dp)) {
             when {
                 working != null -> Centred {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = Palette.accent)
                     Spacer(Modifier.height(16.dp))
-                    Text(working!!, style = MaterialTheme.typography.bodyMedium)
+                    Text(working!!, color = Palette.dim, fontSize = 14.sp)
                 }
 
                 imported != null -> Centred {
-                    Text("Added $imported items", style = MaterialTheme.typography.titleMedium)
+                    Text("$imported", style = display(48), color = Palette.accentText)
+                    Text("items added", color = Palette.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(24.dp))
-                    Button(onClick = onDone) { Text("Done") }
+                    PillButton("Done", onClick = onDone)
                 }
 
                 staged != null -> {
-                    Text("Enter the six words", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
+                    Kicker("Enter the six words", Modifier.padding(bottom = 8.dp))
                     Text(
                         "Spelling is corrected, order is not.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Palette.dim,
+                        fontSize = 14.sp,
                     )
-                    Spacer(Modifier.height(24.dp))
-                    OutlinedTextField(
+                    Spacer(Modifier.height(20.dp))
+                    InputField(
                         value = typed,
-                        onValueChange = { typed = it; problem = null },
-                        label = { Text("Code") },
-                        isError = problem != null,
-                        supportingText = problem?.let { { Text(it) } },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = { open() }),
-                        trailingIcon = {
-                            IconButton(onClick = { scanning = true }) {
-                                Icon(
-                                    painterResource(R.drawable.ic_scan),
-                                    contentDescription = "Scan the code",
-                                )
-                            }
+                        onChange = { typed = it; problem = null },
+                        placeholder = "Code",
+                        problem = problem,
+                        imeAction = ImeAction.Go,
+                        onAction = { open() },
+                        trailing = {
+                            IconPill(LineIcons.scan, "Scan the code") { scanning = true }
                         },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.enter(0),
                     )
                     Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = { open() },
+                    PillButton(
+                        "Open",
                         enabled = typed.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Open") }
+                        modifier = Modifier.fillMaxWidth().enter(1),
+                    ) { open() }
                 }
 
                 else -> Centred {
                     problem?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium)
+                        Text(it, color = Palette.danger, fontSize = 14.sp)
                         Spacer(Modifier.height(16.dp))
                     }
-                    Button(onClick = {
+                    PillButton("Choose a file") {
                         VaultSession.expectingExternalActivity = true
                         pick.launch(arrayOf("*/*"))
-                    }) { Text("Choose a file") }
+                    }
                 }
             }
         }

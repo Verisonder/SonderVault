@@ -2,7 +2,9 @@ package com.verisonder.sondervault.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,17 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,7 +23,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.verisonder.sondervault.ui.theme.Palette
+import com.verisonder.sondervault.ui.theme.display
 import com.verisonder.sondervault.bundle.Bundle
 import com.verisonder.sondervault.bundle.BundleWriter
 import com.verisonder.sondervault.crypto.RecoveryPhrase
@@ -58,7 +55,6 @@ import java.util.Locale
  * The code is generated here and shown once. It is not stored anywhere — there is nothing
  * to look it up in later, which is the point and also the risk, so the screen says so.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShareScreen(
     store: VaultStore,
@@ -137,41 +133,31 @@ fun ShareScreen(
         saveBundle.launch("$fileName.${Bundle.EXTENSION}")
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        when {
-                            finished -> "Saved"
-                            phrase.isNotEmpty() -> "Write this down"
-                            isBackup -> "Back up everything"
-                            chosen.size == 1 -> "Share 1 item"
-                            else -> "Share ${chosen.size} items"
-                        }
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onDone, enabled = working == null) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+    val title = when {
+        finished -> "Saved."
+        phrase.isNotEmpty() -> "Write this down."
+        isBackup -> "Back up everything."
+        chosen.size == 1 -> "Share 1 item."
+        else -> "Share ${chosen.size} items."
+    }
+
+    Column(Modifier.fillMaxSize().background(Palette.bg).navigationBarsPadding()) {
+        TopBar(onBack = onDone, close = true, enabled = working == null)
+        ScreenHeader(title, kicker = if (isBackup) "Backup" else "Share")
+
+        Box(modifier = Modifier.fillMaxSize()) {
             when {
                 working != null -> Centred {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = Palette.accent)
                     Spacer(Modifier.height(16.dp))
-                    Text(working!!, style = MaterialTheme.typography.bodyMedium)
+                    Text(working!!, color = Palette.dim, fontSize = 14.sp)
                 }
 
                 phrase.isNotEmpty() -> Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(20.dp),
+                        .padding(horizontal = Gutter, vertical = 12.dp),
                 ) {
                     Text(
                         if (isBackup) {
@@ -180,59 +166,61 @@ fun ShareScreen(
                         } else {
                             "Whoever you send the file to needs these six words to open it."
                         },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Palette.dim,
+                        fontSize = 14.sp,
+                        lineHeight = 19.sp,
                     )
                     Spacer(Modifier.height(20.dp))
                     CodeCard(phrase, onSaveToFile = {
                         VaultSession.expectingExternalActivity = true
                         saveCode.launch("$fileName-code.txt")
-                    })
+                    }, modifier = Modifier.enter(0))
                     Spacer(Modifier.height(20.dp))
                     problem?.let {
-                        Text(
-                            it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
+                        Text(it, color = Palette.danger, fontSize = 14.sp)
                         Spacer(Modifier.height(12.dp))
                     }
                     if (finished) {
                         Text(
                             "The file is saved. Keep the code somewhere separate from it.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Palette.dim,
+                            fontSize = 14.sp,
                         )
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
-                            Text("Done")
-                        }
+                        PillButton("Done", modifier = Modifier.fillMaxWidth(), onClick = onDone)
                     } else {
-                        Button(onClick = { saveFile() }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Choose where to save the file")
-                        }
+                        PillButton("Choose where to save the file", modifier = Modifier.fillMaxWidth()) { saveFile() }
                     }
                 }
 
                 chosen.isEmpty() -> Centred {
-                    Text("Nothing to share", style = MaterialTheme.typography.titleMedium)
+                    Text("Nothing to share.", style = display(18), color = Palette.text)
                 }
 
-                else -> Centred {
-                    Text(
-                        if (chosen.size == 1) "1 item" else "${chosen.size} items",
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "They go into one encrypted file with its own six word code.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Button(onClick = { confirmingPassword = true }) {
-                        Text(if (isBackup) "Back up" else "Create file")
+                else -> Column(Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 12.dp)) {
+                    Block(Modifier.enter(0)) {
+                        Text(
+                            if (chosen.size == 1) "1" else "${chosen.size}",
+                            style = display(44),
+                            color = Palette.accentText,
+                        )
+                        Text(
+                            if (chosen.size == 1) "item" else "items",
+                            color = Palette.text, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "They go into one encrypted file with its own six word code.",
+                            color = Palette.dim,
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp,
+                        )
                     }
+                    Spacer(Modifier.height(20.dp))
+                    PillButton(
+                        if (isBackup) "Back up" else "Create file",
+                        modifier = Modifier.fillMaxWidth().enter(1),
+                    ) { confirmingPassword = true }
                 }
             }
         }

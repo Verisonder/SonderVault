@@ -2,15 +2,10 @@ package com.verisonder.sondervault.ui
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,9 +14,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.verisonder.sondervault.ui.theme.Palette
+import com.verisonder.sondervault.ui.theme.display
 import androidx.fragment.app.FragmentActivity
 import com.verisonder.sondervault.crypto.Crypto
 import com.verisonder.sondervault.security.BiometricKey
@@ -97,46 +93,40 @@ fun ConfirmPassword(
 
     AlertDialog(
         onDismissRequest = { if (!checking) onCancel() },
-        title = { Text("Enter your password") },
+        containerColor = Palette.panel,
+        shape = RoundedCornerShape(26.dp),
+        title = { Text("Enter your password", style = display(20), color = Palette.text) },
         text = {
             Column {
-                Text(reason, style = MaterialTheme.typography.bodyMedium)
+                Text(reason, color = Palette.dim, fontSize = 14.sp, lineHeight = 19.sp)
                 Spacer(Modifier.height(16.dp))
-                OutlinedTextField(
+                InputField(
                     value = password,
-                    onValueChange = { password = it; wrong = false },
-                    label = { Text("Password") },
-                    singleLine = true,
+                    onChange = { password = it; wrong = false },
+                    placeholder = "Password",
+                    password = true,
                     enabled = !checking,
-                    isError = wrong,
-                    supportingText = if (wrong) {
-                        { Text("That is not your password.") }
-                    } else {
-                        null
-                    },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Go,
-                    ),
-                    keyboardActions = KeyboardActions(onGo = { submit() }),
-                    modifier = Modifier.fillMaxWidth(),
+                    problem = if (wrong) "That is not your password." else null,
+                    imeAction = ImeAction.Go,
+                    onAction = { submit() },
+                    fill = Palette.card2,
                 )
                 if (fingerprintReady) {
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = { tryFingerprint() }, enabled = !checking) {
-                        Text("Use fingerprint")
-                    }
+                    TextAction("Use fingerprint", enabled = !checking) { tryFingerprint() }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { submit() }, enabled = password.isNotEmpty() && !checking) {
-                Text(if (checking) "Checking…" else confirmLabel)
-            }
+            PillButton(
+                confirmLabel,
+                enabled = password.isNotEmpty() || checking,
+                working = checking,
+                modifier = Modifier.height(44.dp),
+            ) { submit() }
         },
         dismissButton = {
-            TextButton(onClick = onCancel, enabled = !checking) { Text("Cancel") }
+            TextAction("Cancel", enabled = !checking, color = Palette.dim, onClick = onCancel)
         },
     )
 }
