@@ -67,6 +67,18 @@ class UnlockLimit(private val stateFile: File) {
         write(State(failures, now + penaltyFor(failures)))
     }
 
+    /**
+     * The check and the record in one step: false while a wait is running (and nothing
+     * is recorded), otherwise the attempt is written down and true is returned. Every
+     * route that tests a password goes through this, so none of them can skip the wait.
+     */
+    @Synchronized
+    fun tryAttempt(now: Long = System.currentTimeMillis()): Boolean {
+        if (remainingMs(now) > 0L) return false
+        noteAttempt(now)
+        return true
+    }
+
     /** A vault opened. Nothing is owed. */
     fun clear() {
         stateFile.delete()

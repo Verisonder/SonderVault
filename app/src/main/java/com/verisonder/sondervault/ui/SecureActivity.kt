@@ -25,5 +25,9 @@ abstract class SecureActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         super.onCreate(savedInstanceState)
+        // Taps that arrive through another app's window drawn on top are dropped. That is
+        // how an overlay tricks someone into pressing "Put back" or typing a password
+        // into something they cannot see.
+        window.decorView.filterTouchesWhenObscured = true
     }
 }

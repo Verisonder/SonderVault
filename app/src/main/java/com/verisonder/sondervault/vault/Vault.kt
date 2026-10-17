@@ -102,9 +102,12 @@ class Vault internal constructor(
         // index loses every file key, which is the same as losing the vault.
         val temp = File(directory, "index.new")
         VaultFileWriter(temp, indexKey).use { it.write(VaultIndex.serialise(items)) }
+        // No copy-over fallback. Copying truncates the only good index before writing the
+        // new one, so a failure halfway would lose every file key. Failing here leaves the
+        // previous index exactly as it was.
         if (!temp.renameTo(indexFile)) {
-            temp.copyTo(indexFile, overwrite = true)
             temp.delete()
+            throw java.io.IOException("could not save the index")
         }
         cache = items.toMutableList()
     }
@@ -123,26 +126,35 @@ class Vault internal constructor(
         val fileKey = Crypto.randomKey()
         var size = 0L
 
-        VaultFileWriter(contentFile(id), fileKey).use { writer ->
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
-                val read = input.read(buffer)
-                if (read <= 0) break
-                writer.write(buffer, 0, read)
-                size += read
+        try {
+            VaultFileWriter(contentFile(id), fileKey).use { writer ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    writer.write(buffer, 0, read)
+                    size += read
+                }
             }
-        }
 
-        if (thumbnail != null) {
-            VaultFileWriter(thumbnailFile(id), Crypto.hkdf(fileKey, INFO_THUMB)).use {
-                it.write(thumbnail)
+            if (thumbnail != null) {
+                VaultFileWriter(thumbnailFile(id), Crypto.hkdf(fileKey, INFO_THUMB)).use {
+                    it.write(thumbnail)
+                }
             }
+        } catch (e: Exception) {
+            // A half-written item has no index record, so nothing would ever delete it.
+            contentFile(id).delete()
+            thumbnailFile(id).delete()
+            throw e
         }
 
         val item = VaultItem(
             id = id,
-            name = name,
-            mimeType = mimeType,
+            // Names and types arrive from outside: a file picker, a gallery, or a bundle
+            // someone else made. Cleaned here, once, for every route in.
+            name = SafeNames.fileName(name),
+            mimeType = SafeNames.mimeType(mimeType),
             size = size,
             addedAt = System.currentTimeMillis(),
             capturedAt = capturedAt,
@@ -208,14 +220,18 @@ class Vault internal constructor(
      * that holds 40 MB disagree visibly until the bytes are gone, and largest-first
      * makes that number fall fast.
      *
-     * Overwriting before deleting is not attempted. On flash storage it does not do what
-     * it appears to do, and pretending otherwise would be worse than not claiming it.
+     * Only the index is overwritten before deleting: it is small and it holds every item
+     * key, so if its old bytes are really gone the item files are unreadable noise. The
+     * large files are just deleted — overwriting gigabytes on flash storage does not do
+     * what it appears to do, and nothing here claims it does.
      */
     fun destroyContents() {
+        // The index holds every item key, so it goes first and is overwritten, not just
+        // unlinked. Best effort on flash, as everywhere.
+        VaultStore.shred(indexFile)
+        VaultStore.shred(File(directory, "index.new"))
         val files = itemsDir.listFiles()?.sortedByDescending { it.length() } ?: emptyList()
         for (file in files) file.delete()
-        indexFile.delete()
-        File(directory, "index.new").delete()
         cache = mutableListOf()
     }
 

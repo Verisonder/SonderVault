@@ -109,7 +109,7 @@ object KeySlots {
         val memKiB = Crypto.getIntBE(blob, 5)
         val iterations = Crypto.getIntBE(blob, 9)
         val parallelism = blob[13].toInt() and 0xFF
-        if (memKiB !in 8..1_048_576 || iterations !in 1..64 || parallelism !in 1..16) return null
+        if (memKiB !in 8..262_144 || iterations !in 1..64 || parallelism !in 1..16) return null
 
         val salt = blob.copyOfRange(14, 14 + SALT_BYTES)
         val header = blob.copyOfRange(0, HEADER_SIZE)

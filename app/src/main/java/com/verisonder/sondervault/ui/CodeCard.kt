@@ -24,8 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +49,7 @@ fun CodeCard(
     onSaveToFile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val text = RecoveryPhrase.canonical(words)
     val qr by produceState<ImageBitmap?>(initialValue = null, text) {
         value = withContext(Dispatchers.Default) { runCatching { qrCode(text) }.getOrNull() }
@@ -91,7 +90,7 @@ fun CodeCard(
         }
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PillButton("Copy", filled = false) { clipboard.setText(AnnotatedString(text)) }
+            PillButton("Copy", filled = false) { copySecret(context, text) }
             PillButton("Save as file", filled = false, onClick = onSaveToFile)
         }
     }

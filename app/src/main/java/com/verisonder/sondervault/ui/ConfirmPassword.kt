@@ -51,6 +51,8 @@ fun ConfirmPassword(
     var password by remember { mutableStateOf("") }
     var checking by remember { mutableStateOf(false) }
     var wrong by remember { mutableStateOf(false) }
+    // The same wait as the unlock screen: this prompt tests the same password.
+    var waitMs by remember { mutableStateOf(store.remainingLockoutMs()) }
     val scope = rememberCoroutineScope()
 
     val fingerprintReady = remember {
@@ -86,7 +88,8 @@ fun ConfirmPassword(
                 onConfirmed()
             } else {
                 password = ""
-                wrong = true
+                waitMs = store.remainingLockoutMs()
+                wrong = waitMs <= 0L
             }
         }
     }
@@ -102,11 +105,15 @@ fun ConfirmPassword(
                 Spacer(Modifier.height(16.dp))
                 InputField(
                     value = password,
-                    onChange = { password = it; wrong = false },
+                    onChange = { password = it; wrong = false; waitMs = store.remainingLockoutMs() },
                     placeholder = "Password",
                     password = true,
                     enabled = !checking,
-                    problem = if (wrong) "That is not your password." else null,
+                    problem = when {
+                        waitMs > 0L -> "Too many attempts. Try again in ${countdown(waitMs)}."
+                        wrong -> "That is not your password."
+                        else -> null
+                    },
                     imeAction = ImeAction.Go,
                     onAction = { submit() },
                     fill = Palette.card2,

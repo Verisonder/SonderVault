@@ -1,6 +1,13 @@
 package com.verisonder.sondervault.ui
 
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.PersistableBundle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,4 +42,35 @@ object Wordlist {
             context.resources.openRawResource(R.raw.bip39_en).bufferedReader().lineSequence(),
         ).also { cached = it }
     }
+}
+
+/**
+ * Copy a secret — a six-word code — so it can be pasted once, and not kept.
+ *
+ * Marked sensitive, so Android 13 and later do not show it in the paste preview and
+ * keyboards with a clipboard history are told not to save it. Cleared after a minute if
+ * it is still what is on the clipboard, so it does not sit there for the next app that
+ * reads it.
+ */
+fun copySecret(context: Context, text: String) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java) ?: return
+    val clip = ClipData.newPlainText("code", text)
+    clip.description.extras = PersistableBundle().apply {
+        if (Build.VERSION.SDK_INT >= 33) {
+            putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+        } else {
+            putBoolean("android.content.extra.IS_SENSITIVE", true)
+        }
+    }
+    clipboard.setPrimaryClip(clip)
+    Handler(Looper.getMainLooper()).postDelayed({
+        runCatching {
+            val current = clipboard.primaryClip
+            if (current != null && current.itemCount > 0 &&
+                current.getItemAt(0).text?.toString() == text
+            ) {
+                clipboard.clearPrimaryClip()
+            }
+        }
+    }, 60_000L)
 }

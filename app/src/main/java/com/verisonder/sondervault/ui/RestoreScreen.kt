@@ -153,6 +153,7 @@ fun RestoreScreen(vault: Vault, activity: FragmentActivity, onDone: () -> Unit) 
                         value = typed,
                         onChange = { typed = it; problem = null },
                         placeholder = "Code",
+                        secret = true,
                         problem = problem,
                         imeAction = ImeAction.Go,
                         onAction = { open() },

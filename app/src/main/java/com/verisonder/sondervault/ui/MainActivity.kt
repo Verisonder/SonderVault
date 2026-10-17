@@ -39,8 +39,14 @@ class MainActivity : SecureActivity() {
         }
     }
 
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var started = false
+    private val lockIfStillAway = Runnable { if (!started) VaultSession.lock() }
+
     override fun onStart() {
         super.onStart()
+        started = true
+        handler.removeCallbacks(lockIfStillAway)
         VaultSession.noteForeground()
     }
 
@@ -53,6 +59,15 @@ class MainActivity : SecureActivity() {
      */
     override fun onStop() {
         super.onStop()
-        VaultSession.lockUnlessLeavingBriefly()
+        started = false
+        if (VaultSession.expectingExternalActivity) {
+            // Kept open for the file picker or a confirmation the app itself started —
+            // but only for as long as that should take. Someone who goes from the picker
+            // to the home screen instead of back would otherwise leave the vault open
+            // in memory indefinitely, because nothing else would ever lock it.
+            handler.postDelayed(lockIfStillAway, VaultSession.EXTERNAL_WINDOW_MS)
+        } else {
+            VaultSession.lock()
+        }
     }
 }

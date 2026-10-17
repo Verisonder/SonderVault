@@ -95,12 +95,22 @@ class BundleTest {
     }
 
     @Test
-    fun `a filename with tabs and newlines survives`() {
+    fun `a filename with tabs and newlines survives the manifest`() {
+        // Imports now clean names (no separators or control characters), so the escaping
+        // is checked on the manifest itself: a bundle made by an older version, or by
+        // someone else, can still carry any name, and it has to parse back exactly.
+        val name = "a\tname\nwith\\separators.jpg"
+        val entry = BundleEntry(name, "image/jpeg", 100, 0, ByteArray(32), 0, 200)
+        assertEquals(name, Bundle.parse(Bundle.serialise(listOf(entry))).single().name)
+    }
+
+    @Test
+    fun `a name with separators is cleaned when it comes in`() {
         val item = vault.importItem(
             "a\tname\nwith\\separators.jpg", "image/jpeg", ByteArrayInputStream(bytes(100, 4)),
         )
         val reader = open(write(listOf(item)).file)
-        assertEquals("a\tname\nwith\\separators.jpg", reader.entries.single().name)
+        assertEquals("anamewith_separators.jpg", reader.entries.single().name)
     }
 
     @Test

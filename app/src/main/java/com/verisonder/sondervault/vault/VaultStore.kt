@@ -133,6 +133,9 @@ class VaultStore(
      */
     fun changeDuress(currentDuress: ByteArray, newDuress: ByteArray, wipes: Boolean): Boolean {
         if (!isConfigured) return false
+        // Counted like an unlock. Without this the duress screen was a way to try
+        // passwords as fast as Argon2 allows, with no wait at all.
+        if (!limit.tryAttempt()) return false
         val blob = slotsFile.readBytes()
         val unlocked = KeySlots.unlock(blob, currentDuress) ?: return false
         if (!unlocked.isDecoy) {
@@ -147,12 +150,14 @@ class VaultStore(
         Crypto.wipe(unlocked.masterKey)
         if (updated == null) return false
         writeSlots(updated)
+        limit.clear()
         return true
     }
 
     /** Remove the duress password and the vault it opened. */
     fun removeDuress(currentDuress: ByteArray): Boolean {
         if (!isConfigured) return false
+        if (!limit.tryAttempt()) return false
         val blob = slotsFile.readBytes()
         val unlocked = KeySlots.unlock(blob, currentDuress) ?: return false
         if (!unlocked.isDecoy) {
@@ -162,6 +167,7 @@ class VaultStore(
         val decoy = openVault(unlocked.masterKey, isDecoy = true)
         Crypto.wipe(unlocked.masterKey)
         writeSlots(KeySlots.clearSlot(blob, unlocked.slotIndex))
+        limit.clear()
         // The decoy's own photos go with it. Leaving a directory nothing can open is a
         // stack of bytes that only ever looks suspicious.
         decoy.destroyContents()
@@ -190,8 +196,7 @@ class VaultStore(
         // Refused flatly while the wait is running, and the answer is the same one a
         // wrong password gets. A screen that distinguished them would be telling whoever
         // is guessing which of their guesses had been worth counting.
-        if (limit.remainingMs() > 0L) return null
-        limit.noteAttempt()
+        if (!limit.tryAttempt()) return null
 
         val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return null
         // Any real unlock clears it, the decoy included. Someone made to open the vault
@@ -201,6 +206,10 @@ class VaultStore(
         var wiped = false
         if (unlocked.wipe) {
             destroyEverythingExcept(vault.directory)
+            // The fingerprint wrapping holds a copy of the real master key. With the real
+            // vault gone it opens nothing worth having, and leaving it would keep a key
+            // to the deleted files on the phone.
+            File(baseDir, BIOMETRIC_FILE).let { shred(it) }
             wiped = true
         }
         return Opened(vault, unlocked.isDecoy, wiped)
@@ -216,9 +225,14 @@ class VaultStore(
      */
     fun confirms(password: ByteArray, vault: Vault): Boolean {
         if (!isConfigured) return false
+        // Shares the unlock's wait. An open vault is not proof the owner is holding the
+        // phone, and this prompt answered "is this the password?" as often as asked —
+        // which made it a way to guess the main password with no wait at all.
+        if (!limit.tryAttempt()) return false
         val unlocked = KeySlots.unlock(slotsFile.readBytes(), password) ?: return false
         val matches = vault.matchesMasterKey(unlocked.masterKey)
         Crypto.wipe(unlocked.masterKey)
+        if (matches) limit.clear()
         return matches
     }
 
@@ -250,6 +264,12 @@ class VaultStore(
         val others = vaultsDir.listFiles()?.filter { it.isDirectory && it.name != keep.name }
             ?: return
         for (directory in others) {
+            // The index first, overwritten before it is removed. It holds every item's
+            // key, so once its bytes are gone the item files are noise even to someone
+            // who recovers them from the flash later. Best effort — flash storage may
+            // keep an old copy — but it costs a few kilobytes of writing.
+            shred(File(directory, "index"))
+            shred(File(directory, "index.new"))
             val files = directory.walkTopDown().filter { it.isFile }
                 .sortedByDescending { it.length() }
             for (file in files) file.delete()
@@ -290,5 +310,30 @@ class VaultStore(
 
     companion object {
         const val INFO_DIRECTORY = "sondervault:dir:v1"
+        private const val BIOMETRIC_FILE = "bio.bin"
+
+        /**
+         * Overwrite a small file with random bytes, force it to disk, then delete it.
+         * Used for the files that hold keys. Not a promise on flash storage, which can
+         * write the new bytes somewhere else, but on many phones it does replace them.
+         */
+        internal fun shred(file: File) {
+            if (!file.isFile) return
+            runCatching {
+                java.io.RandomAccessFile(file, "rws").use { raf ->
+                    val length = raf.length()
+                    var written = 0L
+                    val chunk = ByteArray(64 * 1024)
+                    while (written < length) {
+                        val n = minOf(chunk.size.toLong(), length - written).toInt()
+                        java.security.SecureRandom().nextBytes(chunk)
+                        raf.write(chunk, 0, n)
+                        written += n
+                    }
+                    raf.fd.sync()
+                }
+            }
+            file.delete()
+        }
     }
 }

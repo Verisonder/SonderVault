@@ -291,6 +291,8 @@ fun InputField(
     placeholder: String,
     modifier: Modifier = Modifier,
     password: Boolean = false,
+    /** Shown, but kept out of the keyboard's memory and suggestions (a six-word code). */
+    secret: Boolean = false,
     enabled: Boolean = true,
     problem: String? = null,
     imeAction: ImeAction = ImeAction.Done,
@@ -309,7 +311,13 @@ fun InputField(
             cursorBrush = SolidColor(Palette.accent),
             visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
             keyboardOptions = KeyboardOptions(
-                keyboardType = if (password) KeyboardType.Password else KeyboardType.Text,
+                keyboardType = when {
+                    password -> KeyboardType.Password
+                    // A password field to the keyboard (no learning, no suggestions, no
+                    // clipboard history) while the text itself stays visible.
+                    secret -> KeyboardType.Password
+                    else -> KeyboardType.Text
+                },
                 imeAction = imeAction, autoCorrectEnabled = false,
             ),
             // Next keeps its default (move to the next field) unless an action is given.

@@ -6,6 +6,11 @@ on:
       - 'test/**'
   workflow_dispatch:
 
+# Read-only for the built-in token. Test builds are published to vs-artifacts with
+# ARTIFACTS_PAT, which is scoped to that repository alone.
+permissions:
+  contents: read
+
 # Signed with the real release key, so a test build installs straight over a published
 # one and keeps the vault. A debug APK would not, and reinstalling means losing
 # everything in it.

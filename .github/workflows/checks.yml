@@ -8,6 +8,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only. A workflow that only builds and tests has no business writing anything.
+permissions:
+  contents: read
+
 # There is no Gradle wrapper in this repository. CI installs Gradle instead, so no
 # binary jar sits in source control.
 jobs:

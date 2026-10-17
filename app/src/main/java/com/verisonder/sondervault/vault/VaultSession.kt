@@ -14,7 +14,7 @@ import androidx.compose.runtime.mutableStateOf
  */
 object VaultSession {
 
-    private const val EXTERNAL_WINDOW_MS = 2 * 60 * 1000L
+    const val EXTERNAL_WINDOW_MS = 2 * 60 * 1000L
 
     private val state = mutableStateOf<VaultStore.Opened?>(null)
 

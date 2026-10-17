@@ -9,6 +9,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.verisonder.sondervault.vault.Vault
 import com.verisonder.sondervault.vault.ItemKind
+import com.verisonder.sondervault.vault.SafeNames
 import com.verisonder.sondervault.vault.VaultItem
 import java.io.File
 import java.io.FileOutputStream
@@ -61,8 +62,8 @@ object VaultExport {
         }
 
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, item.name)
-            put(MediaStore.MediaColumns.MIME_TYPE, item.mimeType)
+            put(MediaStore.MediaColumns.DISPLAY_NAME, SafeNames.fileName(item.name))
+            put(MediaStore.MediaColumns.MIME_TYPE, SafeNames.mimeType(item.mimeType))
             put(MediaStore.MediaColumns.RELATIVE_PATH, folder)
             // Put back where it was in the timeline, not at the top of the gallery. A
             // photo from three years ago that reappears as today's is worse than not
@@ -133,7 +134,13 @@ object VaultExport {
             },
         )
         folder.mkdirs()
-        val target = uniqueName(folder, item.name)
+        // Cleaned again here as well as at import, for items that went in before names
+        // were cleaned. The check after is the backstop: whatever the name, the file must
+        // land directly inside the folder.
+        val target = uniqueName(folder, SafeNames.fileName(item.name))
+        if (target.canonicalFile.parentFile != folder.canonicalFile) {
+            throw IllegalStateException("That file name is not allowed")
+        }
         FileOutputStream(target).use { sink ->
             vault.open(item).use { reader -> reader.copyTo(sink) }
         }
@@ -141,7 +148,7 @@ object VaultExport {
         target.setLastModified(item.capturedAt)
         // Nothing indexes this automatically before Android 10, so the gallery would not
         // show the file until something else happened to trigger a scan.
-        MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(item.mimeType), null)
+        MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(SafeNames.mimeType(item.mimeType)), null)
         return Uri.fromFile(target)
     }
 

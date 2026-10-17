@@ -110,7 +110,10 @@ fun DuressScreen(
                     if (decoy != null) onChooseDecoyPhotos(decoy) else onClose()
                 }
                 .onFailure {
-                    problem = if (alreadySet) {
+                    val wait = store.remainingLockoutMs()
+                    problem = if (wait > 0L) {
+                        "Too many attempts. Try again in ${countdown(wait)}."
+                    } else if (alreadySet) {
                         "That is not your current duress password."
                     } else {
                         "That is not your password."
@@ -241,7 +244,9 @@ fun DuressScreen(
                             store.removeDuress(current.toByteArray(Charsets.UTF_8))
                         }
                         working = false
+                        val wait = store.remainingLockoutMs()
                         if (ok) onClose()
+                        else if (wait > 0L) problem = "Too many attempts. Try again in ${countdown(wait)}."
                         else problem = "That is not your current duress password."
                     }
                 }

@@ -174,7 +174,7 @@ fun UnlockScreen(
  * Reads as a wait rather than as a stopwatch: someone who mistyped their password twice
  * should see something that sounds like a pause, not a penalty being served.
  */
-private fun countdown(remainingMs: Long): String {
+internal fun countdown(remainingMs: Long): String {
     val seconds = ((remainingMs + 999) / 1000).coerceAtLeast(1)
     if (seconds < 60) return if (seconds == 1L) "1 second" else "$seconds seconds"
     val minutes = seconds / 60

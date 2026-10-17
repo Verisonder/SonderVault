@@ -3,6 +3,7 @@ package com.verisonder.sondervault.bundle
 import com.verisonder.sondervault.crypto.Crypto
 import com.verisonder.sondervault.crypto.FileSource
 import com.verisonder.sondervault.crypto.RecoveryPhrase
+import com.verisonder.sondervault.crypto.VaultFile
 import com.verisonder.sondervault.crypto.VaultFileReader
 import com.verisonder.sondervault.crypto.asInputStream
 import com.verisonder.sondervault.vault.Vault
@@ -125,6 +126,9 @@ class BundleReader private constructor(
 
         class WrongPhrase : IOException("That code does not open this file")
 
+        private const val MAX_MEM_KIB = 4 * Crypto.ARGON_MEM_KIB
+        private const val MAX_ENTRIES = 1_000_000
+
         fun open(file: File, phrase: List<String>): BundleReader {
             RandomAccessFile(file, "r").use { raf ->
                 val header = ByteArray(Bundle.HEADER_SIZE)
@@ -138,7 +142,10 @@ class BundleReader private constructor(
                 val memKiB = Crypto.getIntBE(header, 9)
                 val iterations = Crypto.getIntBE(header, 13)
                 val parallelism = header[17].toInt() and 0xFF
-                if (memKiB !in 8..1_048_576 || iterations !in 1..64 || parallelism !in 1..16) {
+                // A bundle is a file someone else may have made. A gigabyte of Argon2 memory
+                // would simply crash the app, so the ceiling is four times what this app
+                // ever writes rather than whatever the header asks for.
+                if (memKiB !in 8..MAX_MEM_KIB || iterations !in 1..64 || parallelism !in 1..16) {
                     throw IOException("implausible parameters")
                 }
                 val salt = header.copyOfRange(18, 34)
@@ -165,8 +172,22 @@ class BundleReader private constructor(
                 Crypto.wipe(manifest)
 
                 val start = Bundle.HEADER_SIZE.toLong() + sealedLength
-                val expected = entries.sumOf { it.length }
-                if (raf.length() < start + expected) throw IOException("bundle is incomplete")
+                // Every entry has to sit inside the file, one after another, with a size
+                // that a container of that length can actually hold. Checked one by one
+                // so a crafted manifest cannot overflow a running total into something
+                // that looks fine.
+                if (entries.size > MAX_ENTRIES) throw IOException("bundle is damaged")
+                val available = raf.length() - start
+                var cursor = 0L
+                for (e in entries) {
+                    if (e.offset != cursor || e.length < VaultFile.HEADER_SIZE ||
+                        e.length > available - cursor || e.size < 0 ||
+                        e.fileKey.size != Crypto.KEY_BYTES
+                    ) {
+                        throw IOException("bundle is damaged")
+                    }
+                    cursor += e.length
+                }
 
                 return BundleReader(file, entries, start)
             }
