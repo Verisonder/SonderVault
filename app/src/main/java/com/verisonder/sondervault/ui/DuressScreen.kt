@@ -87,19 +87,14 @@ fun DuressScreen(
             val result = withContext(Dispatchers.Default) {
                 runCatching {
                     if (alreadySet) {
-                        val ok = store.changeDuress(
-                            current.toByteArray(Charsets.UTF_8),
-                            duress.toByteArray(Charsets.UTF_8),
-                            wipes,
-                        )
+                        val ok = withPasswordBytes(current) { c ->
+                            withPasswordBytes(duress) { d -> store.changeDuress(c, d, wipes) }
+                        }
                         if (!ok) error("wrong") else null
                     } else {
-                        store.setDuress(
-                            current.toByteArray(Charsets.UTF_8),
-                            vault,
-                            duress.toByteArray(Charsets.UTF_8),
-                            wipes,
-                        ) ?: error("failed")
+                        withPasswordBytes(current) { c ->
+                            withPasswordBytes(duress) { d -> store.setDuress(c, vault, d, wipes) }
+                        } ?: error("failed")
                     }
                 }
             }
@@ -241,7 +236,7 @@ fun DuressScreen(
                     problem = null
                     scope.launch {
                         val ok = withContext(Dispatchers.Default) {
-                            store.removeDuress(current.toByteArray(Charsets.UTF_8))
+                            withPasswordBytes(current) { store.removeDuress(it) }
                         }
                         working = false
                         val wait = store.remainingLockoutMs()

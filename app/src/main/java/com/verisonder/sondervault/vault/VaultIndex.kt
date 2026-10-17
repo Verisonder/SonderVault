@@ -54,49 +54,98 @@ object VaultIndex {
 
     const val MAGIC = "SVIX1"
 
-    fun serialise(items: List<VaultItem>): ByteArray = buildString {
-        appendLine(MAGIC)
-        for (item in items) {
-            append(item.id); append('\t')
-            append(escape(item.name)); append('\t')
-            append(escape(item.mimeType)); append('\t')
-            append(item.size); append('\t')
-            append(item.addedAt); append('\t')
-            append(item.capturedAt); append('\t')
-            append(hex(item.fileKey)); append('\t')
-            append(if (item.hasThumbnail) '1' else '0')
-            append('\n')
+    /**
+     * Written as bytes, with the keys turned into hex straight into the buffer, so no key
+     * ever exists as a String (Strings cannot be wiped). The caller zeroes the result
+     * once it has been encrypted. The format is unchanged.
+     */
+    fun serialise(items: List<VaultItem>): ByteArray {
+        val out = WipeableBuffer()
+        try {
+            fun text(s: String) = out.write(s.toByteArray(Charsets.UTF_8))
+            text(MAGIC); out.write('\n'.code)
+            for (item in items) {
+                text(item.id); out.write('\t'.code)
+                text(escape(item.name)); out.write('\t'.code)
+                text(escape(item.mimeType)); out.write('\t'.code)
+                text(item.size.toString()); out.write('\t'.code)
+                text(item.addedAt.toString()); out.write('\t'.code)
+                text(item.capturedAt.toString()); out.write('\t'.code)
+                for (byte in item.fileKey) {
+                    val v = byte.toInt() and 0xFF
+                    out.write(HEX[v ushr 4].code)
+                    out.write(HEX[v and 0x0F].code)
+                }
+                out.write('\t'.code)
+                out.write(if (item.hasThumbnail) '1'.code else '0'.code)
+                out.write('\n'.code)
+            }
+            return out.toByteArray()
+        } finally {
+            out.wipe()
         }
-    }.toByteArray(Charsets.UTF_8)
+    }
 
-    fun parse(bytes: ByteArray): List<VaultItem> {
-        val lines = String(bytes, Charsets.UTF_8).split('\n')
-        require(lines.isNotEmpty() && lines[0] == MAGIC) { "not a vault index" }
+    fun parse(bytes: ByteArray): List<VaultItem> = parse(bytes, bytes.size)
+
+    /**
+     * Reads the first [length] bytes. Split on bytes rather than decoded to one big String
+     * first, so the keys go from bytes to bytes and never become text. Safe for UTF-8:
+     * tab and newline never occur inside a multi-byte character.
+     */
+    fun parse(bytes: ByteArray, length: Int): List<VaultItem> {
         val out = ArrayList<VaultItem>()
-        for (line in lines.drop(1)) {
-            if (line.isBlank()) continue
-            val f = line.split('\t')
-            // At least eight, rather than exactly eight. A later version that adds a
-            // ninth field would otherwise make every index it has ever touched
-            // unreadable to this one — and the index holds every file key in the vault,
-            // so that is the whole vault, not one feature. Unknown trailing fields are
-            // ignored on purpose.
-            require(f.size >= 8) { "index record has ${f.size} fields, expected at least 8" }
-            out.add(
-                VaultItem(
-                    id = f[0],
-                    name = unescape(f[1]),
-                    mimeType = unescape(f[2]),
-                    size = f[3].toLong(),
-                    addedAt = f[4].toLong(),
-                    capturedAt = f[5].toLong(),
-                    fileKey = unhex(f[6]),
-                    hasThumbnail = f[7] == "1",
+        var lineStart = 0
+        var first = true
+        while (lineStart <= length) {
+            var lineEnd = lineStart
+            while (lineEnd < length && bytes[lineEnd] != '\n'.code.toByte()) lineEnd++
+            if (first) {
+                val magic = String(bytes, lineStart, lineEnd - lineStart, Charsets.UTF_8)
+                require(magic == MAGIC) { "not a vault index" }
+                first = false
+            } else if (!isBlank(bytes, lineStart, lineEnd)) {
+                // Field boundaries within the line.
+                val starts = ArrayList<Int>(9)
+                val ends = ArrayList<Int>(9)
+                var fieldStart = lineStart
+                for (i in lineStart..lineEnd) {
+                    if (i == lineEnd || bytes[i] == '\t'.code.toByte()) {
+                        starts.add(fieldStart); ends.add(i); fieldStart = i + 1
+                    }
+                }
+                // At least eight, rather than exactly eight. A later version that adds a
+                // ninth field would otherwise make every index it has ever touched
+                // unreadable to this one — and the index holds every file key in the
+                // vault, so that is the whole vault, not one feature. Unknown trailing
+                // fields are ignored on purpose.
+                require(starts.size >= 8) { "index record has ${starts.size} fields, expected at least 8" }
+                fun field(n: Int) = String(bytes, starts[n], ends[n] - starts[n], Charsets.UTF_8)
+                out.add(
+                    VaultItem(
+                        id = field(0),
+                        name = unescape(field(1)),
+                        mimeType = unescape(field(2)),
+                        size = field(3).toLong(),
+                        addedAt = field(4).toLong(),
+                        capturedAt = field(5).toLong(),
+                        fileKey = unhex(bytes, starts[6], ends[6]),
+                        hasThumbnail = field(7) == "1",
+                    )
                 )
-            )
+            }
+            lineStart = lineEnd + 1
         }
+        require(!first) { "not a vault index" }
         return out
     }
+
+    private fun isBlank(bytes: ByteArray, from: Int, to: Int): Boolean {
+        for (i in from until to) if (!Character.isWhitespace(bytes[i].toInt().toChar())) return false
+        return true
+    }
+
+    private const val HEX = "0123456789abcdef"
 
     // A filename can hold anything a user can type, including the separator and a
     // newline. Escaping the three characters that would break the format is cheaper and
@@ -123,6 +172,18 @@ object VaultIndex {
     }
 
     private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
+
+    /** Hex straight from the index bytes into a key, with no String in between. */
+    private fun unhex(bytes: ByteArray, from: Int, to: Int): ByteArray {
+        val n = to - from
+        require(n % 2 == 0) { "hex field has an odd length" }
+        return ByteArray(n / 2) {
+            val high = Character.digit(bytes[from + it * 2].toInt().toChar(), 16)
+            val low = Character.digit(bytes[from + it * 2 + 1].toInt().toChar(), 16)
+            require(high >= 0 && low >= 0) { "hex field holds a character that is not hex" }
+            ((high shl 4) or low).toByte()
+        }
+    }
 
     /**
      * Character.digit answers -1 for anything that is not a hex digit, and the shift

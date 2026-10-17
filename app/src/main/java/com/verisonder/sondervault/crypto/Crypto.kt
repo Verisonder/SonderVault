@@ -87,12 +87,16 @@ object Crypto {
             mac.update(block)
             mac.update(info)
             mac.update(counter.toByte())
-            block = mac.doFinal()
+            val next = mac.doFinal()
+            wipe(block)
+            block = next
             val take = minOf(block.size, length - written)
             System.arraycopy(block, 0, out, written, take)
             written += take
             counter++
         }
+        // The last block is key material too; only the copy in `out` is meant to live.
+        wipe(block)
         return out
     }
 

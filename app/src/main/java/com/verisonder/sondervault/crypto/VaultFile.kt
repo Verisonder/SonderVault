@@ -148,6 +148,7 @@ class VaultFileWriter(
         if (buffered == 0) return
         val plain = if (buffered == blockSize) buffer else buffer.copyOf(buffered)
         val ciphertext = Crypto.ctr(encKey, nonce, blockIndex * countersPerBlock, plain)
+        if (plain !== buffer) Crypto.wipe(plain)
         raf.write(ciphertext, 0, buffered)
         raf.write(VaultFile.blockMac(macKey, nonce, blockIndex, ciphertext, buffered))
         blockIndex++
@@ -245,6 +246,9 @@ class VaultFileReader(private val source: RandomSource, fileKey: ByteArray) : Cl
             val within = (cursor - index * blockSize).toInt()
             val count = minOf(remaining, (plain.size - within).toLong()).toInt()
             consume(plain, within, count)
+            // Each decrypted block is zeroed once it has been handed on, so a megabyte of
+            // plaintext does not linger in memory for every block that was read.
+            Crypto.wipe(plain)
             cursor += count
             remaining -= count
             if (remaining <= 0) break

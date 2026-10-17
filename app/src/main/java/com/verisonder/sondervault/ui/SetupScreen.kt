@@ -61,14 +61,13 @@ fun SetupScreen(store: VaultStore, onDone: () -> Unit) {
             // thread drawing the screen.
             val result = withContext(Dispatchers.Default) {
                 runCatching {
-                    val bytes = password.toByteArray(Charsets.UTF_8)
-                    val configured = store.configure(bytes, null, false)
+                    val configured = withPasswordBytes(password) { store.configure(it, null, false) }
                     VaultStore.Opened(configured.real, isDecoy = false, wiped = false)
                 }
             }
             working = false
             result
-                .onSuccess { VaultSession.open(it); onDone() }
+                .onSuccess { password = ""; confirm = ""; VaultSession.open(it); onDone() }
                 .onFailure { problem = it.message ?: "Could not create the vault" }
         }
     }

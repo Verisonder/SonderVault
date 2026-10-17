@@ -74,3 +74,17 @@ fun copySecret(context: Context, text: String) {
         }
     }, 60_000L)
 }
+
+/**
+ * The password as bytes for exactly as long as [use] runs, then zeroed. The typed text
+ * itself is a String the app cannot wipe, but this way no extra copy of it is left lying
+ * in memory after each try.
+ */
+inline fun <T> withPasswordBytes(text: String, use: (ByteArray) -> T): T {
+    val bytes = text.toByteArray(Charsets.UTF_8)
+    try {
+        return use(bytes)
+    } finally {
+        java.util.Arrays.fill(bytes, 0)
+    }
+}

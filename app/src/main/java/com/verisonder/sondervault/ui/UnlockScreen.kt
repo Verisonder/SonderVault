@@ -98,7 +98,7 @@ fun UnlockScreen(
         problem = null
         scope.launch {
             val opened = withContext(Dispatchers.Default) {
-                runCatching { store.unlock(password.toByteArray(Charsets.UTF_8)) }.getOrNull()
+                runCatching { withPasswordBytes(password) { store.unlock(it) } }.getOrNull()
             }
             working = false
             if (opened == null) {
@@ -108,6 +108,8 @@ fun UnlockScreen(
                 waitMs = store.remainingLockoutMs()
                 problem = if (waitMs > 0L) null else "That did not open anything."
             } else {
+                // Dropped as soon as it has done its job rather than held by the screen.
+                password = ""
                 VaultSession.open(opened)
                 onOpened()
             }

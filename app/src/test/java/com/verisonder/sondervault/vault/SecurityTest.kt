@@ -145,4 +145,23 @@ class SecurityTest {
             assertNull(null)
         }
     }
+
+    @Test
+    fun `the index is written in exactly the old format`() {
+        val item = VaultItem("ab12", "a\tb.jpg", "image/jpeg", 10, 20, 30, ByteArray(32) { it.toByte() }, true)
+        val expected = "SVIX1\nab12\ta\\tb.jpg\timage/jpeg\t10\t20\t30\t" +
+            (0 until 32).joinToString("") { "%02x".format(it) } + "\t1\n"
+        assertEquals(expected, String(VaultIndex.serialise(listOf(item)), Charsets.UTF_8))
+        assertEquals(listOf(item), VaultIndex.parse(expected.toByteArray()))
+    }
+
+    @Test
+    fun `locking zeroes every item key`() {
+        val vault = store().configure("main-password".toByteArray(), null, false).real
+        vault.importItem("a.jpg", "image/jpeg", ByteArrayInputStream(ByteArray(10)))
+        val held = vault.items().single()
+        assertTrue(held.fileKey.any { it != 0.toByte() })
+        vault.close()
+        assertTrue(held.fileKey.all { it == 0.toByte() })
+    }
 }

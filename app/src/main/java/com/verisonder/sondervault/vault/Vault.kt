@@ -75,8 +75,15 @@ class Vault internal constructor(
             mutableListOf<VaultItem>()
         } else {
             VaultFileReader(FileSource(indexFile), indexKey).use { reader ->
-                val bytes = ByteArrayOutputStream().also { reader.copyTo(it) }.toByteArray()
-                VaultIndex.parse(bytes).toMutableList()
+                // The decrypted index holds every item key. It is parsed straight from
+                // these bytes and then zeroed, rather than turned into text that cannot be.
+                val sink = WipeableBuffer()
+                try {
+                    reader.copyTo(sink)
+                    VaultIndex.parse(sink.bytes, sink.length).toMutableList()
+                } finally {
+                    sink.wipe()
+                }
             }
         }
         cache = loaded
@@ -101,7 +108,12 @@ class Vault internal constructor(
         // leaves the previous index intact rather than a half-written one. Losing the
         // index loses every file key, which is the same as losing the vault.
         val temp = File(directory, "index.new")
-        VaultFileWriter(temp, indexKey).use { it.write(VaultIndex.serialise(items)) }
+        val plain = VaultIndex.serialise(items)
+        try {
+            VaultFileWriter(temp, indexKey).use { it.write(plain) }
+        } finally {
+            Crypto.wipe(plain)
+        }
         // No copy-over fallback. Copying truncates the only good index before writing the
         // new one, so a failure halfway would lose every file key. Failing here leaves the
         // previous index exactly as it was.
@@ -292,6 +304,12 @@ class Vault internal constructor(
     @Synchronized
     override fun close() {
         closed = true
+        // Every item's key goes too, not just the master key. The screens hold the same
+        // VaultItem objects (lists are copied, the items are not), so zeroing them here
+        // takes the keys out of memory everywhere at once instead of whenever the garbage
+        // collector gets round to it. Nothing can write them back: every write checks
+        // `closed` first, under this same lock.
+        cache?.forEach { Crypto.wipe(it.fileKey) }
         cache = null
         Crypto.wipe(indexKey, masterKey)
     }
@@ -302,5 +320,28 @@ class Vault internal constructor(
 
         /** Read a container straight from memory, for bundles and tests. */
         fun readerFor(bytes: ByteArray, key: ByteArray) = VaultFileReader(ByteArraySource(bytes), key)
+    }
+}
+
+/** A ByteArrayOutputStream whose buffer can be zeroed, for decrypted key material. */
+internal class WipeableBuffer : ByteArrayOutputStream() {
+    val bytes: ByteArray get() = buf
+    val length: Int get() = count
+
+    /** Zeroes the buffer, including copies left behind when it grew. */
+    fun wipe() {
+        java.util.Arrays.fill(buf, 0)
+        count = 0
+    }
+
+    override fun write(b: ByteArray, off: Int, len: Int) {
+        // Growing copies the buffer; zero the old one so no stale copy stays behind.
+        if (count + len > buf.size) {
+            val old = buf
+            super.write(b, off, len)
+            if (old !== buf) java.util.Arrays.fill(old, 0)
+        } else {
+            super.write(b, off, len)
+        }
     }
 }

@@ -81,10 +81,11 @@ fun ConfirmPassword(
         wrong = false
         scope.launch {
             val ok = withContext(Dispatchers.Default) {
-                store.confirms(password.toByteArray(Charsets.UTF_8), vault)
+                withPasswordBytes(password) { store.confirms(it, vault) }
             }
             checking = false
             if (ok) {
+                password = ""
                 onConfirmed()
             } else {
                 password = ""
